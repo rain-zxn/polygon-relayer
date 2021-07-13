@@ -1,6 +1,4 @@
-<h1 align=center> Eth Relayer </h1>
-
-Eth Relayer is an important character of Poly cross-chain interactive protocol which is responsible for relaying cross-chain transaction from and to Ethereum.
+Polygon Relayer is an important character of Poly cross-chain interactive protocol which is responsible for relaying cross-chain transaction from and to Polygon.
 
 ## Build From Source
 
@@ -11,20 +9,20 @@ Eth Relayer is an important character of Poly cross-chain interactive protocol w
 ### Build
 
 ```shell
-git clone https://github.com/polynetwork/eth_relayer.git
-cd eth_relayer
-go build -o eth_relayer main.go
+git clone https://github.com/polynetwork/polygon-relayer.git
+cd polygon-relayer
+go build -o polygon-relayer main.go
 ```
 
-After building the source code successfully,  you should see the executable program `eth_relayer`. 
+After building the source code successfully,  you should see the executable program `polygon-relayer`. 
 
 ### Build Docker Image
 
 ```
-docker build -t polynetwork/eth_relayer -f Dockerfile ./
+docker build -t polynetwork/polygon-relayer -f Dockerfile ./
 ```
 
-This command will copy ./config.json to /app/config.json in the image. So you need to prepare config.json before running this command and you should start the eth-relayer in container basing on the configuration in /app/config.json.
+This command will copy ./config.json to /app/config.json in the image. So you need to prepare config.json before running this command and you should start the polygon-relayer in container basing on the configuration in /app/config.json.
 
 ## Run Relayer
 
@@ -34,25 +32,25 @@ Before running, you need feed the configuration file `config.json`.
 
 ```
 {
-  "MultiChainConfig":{
+  "PolyConfig":{
     "RestURL":"http://poly_ip:20336", // address of Poly
     "EntranceContractAddress":"0300000000000000000000000000000000000000", // CrossChainManagerContractAddress on Poly. No need to change
     "WalletFile":"./wallet.dat", // your poly wallet
     "WalletPwd":"pwd" //password
   },
   "ETHConfig":{
-    "SideChainId": 2, // ethereum chainID
-    "RestURL":"http://etheruem:port", // your ethereum node 
-    "ECCMContractAddress":"ethereum_cross_chain_contract", 
-    "ECCDContractAddress":"ethereum_cross_chain_data_contract",
-    "KeyStorePath": "./keystore", // path to store your ethereum wallet
-    "KeyStorePwdSet": { // password to protect your ethereum wallet
+    "SideChainId": 2, // polygon chainID
+    "RestURL":"http://polygon:port", // your polygon node 
+    "ECCMContractAddress":"polygon_cross_chain_contract", 
+    "ECCDContractAddress":"polygon_cross_chain_data_contract",
+    "KeyStorePath": "./keystore", // path to store your polygon wallet
+    "KeyStorePwdSet": { // password to protect your polygon wallet
       "0xd12e...54ccacf91ca364d": "pwd1", // password for address "0xd12e...54ccacf91ca364d"
       "0xabb4...0aba7cf3ee3b953": "pwd2" // password for address "0xabb4...0aba7cf3ee3b953"
     },
-    "BlockConfig": 12, // blocks to confirm a ethereum tx
+    "BlockConfig": 12, // blocks to confirm a polygon tx
     "HeadersPerBatch": 500, // number of poly headers commited to ECCM in one transaction at most
-    "MonitorInterval": 3 // seconds of ticker to monitor eth chain
+    "MonitorInterval": 3 // seconds of ticker to monitor polygon chain
   },
   "BoltDbPath": "./db", // DB path
   "RoutineNum": 64,
@@ -67,7 +65,7 @@ Before running, you need feed the configuration file `config.json`.
 }
 ```
 
-After that, make sure you already have a ethereum wallet with ETH. The wallet file is like `UTC--2020-08-17T03-44-00.191825735Z--0xd12e...54ccacf91ca364d` and you can use [geth](https://github.com/ethereum/go-ethereum) to create one( `./geth accounts add` ). Put it under `KeyStorePath`. You can create more than one wallet for relayer. Relayer will send transactions concurrently by different accounts.
+After that, make sure you already have a polygon wallet with MATIC. The wallet file is like `UTC--2020-08-17T03-44-00.191825735Z--0xd12e...54ccacf91ca364d` and you can use [geth](https://github.com/ethereum/go-ethereum) to create one( `./geth account new --datadir .` ). Put it under `KeyStorePath`. You can create more than one wallet for relayer. Relayer will send transactions concurrently by different accounts.
 
 Now, you can start relayer as follow: 
 

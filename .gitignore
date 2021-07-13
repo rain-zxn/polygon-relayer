@@ -10,3 +10,6 @@ UTC--*
 *_test.go
 config-main.json
 config-debug-dev.json
+keystore/*
+keystore
+polygon-relayer

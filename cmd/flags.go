@@ -19,7 +19,7 @@ package cmd
 import (
 	"strings"
 
-	"github.com/polynetwork/eth_relayer/config"
+	"github.com/polynetwork/polygon-relayer/config"
 	"github.com/urfave/cli"
 )
 

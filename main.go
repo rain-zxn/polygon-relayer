@@ -18,18 +18,19 @@ package main
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/polynetwork/eth_relayer/cmd"
-	"github.com/polynetwork/eth_relayer/config"
-	"github.com/polynetwork/eth_relayer/db"
-	"github.com/polynetwork/eth_relayer/log"
-	"github.com/polynetwork/eth_relayer/manager"
-	sdk "github.com/polynetwork/poly-go-sdk"
-	"github.com/urfave/cli"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+
+	"github.com/ethereum/go-ethereum/ethclient"
+	sdk "github.com/polynetwork/poly-go-sdk"
+	"github.com/polynetwork/polygon-relayer/cmd"
+	"github.com/polynetwork/polygon-relayer/config"
+	"github.com/polynetwork/polygon-relayer/db"
+	"github.com/polynetwork/polygon-relayer/log"
+	"github.com/polynetwork/polygon-relayer/manager"
+	"github.com/urfave/cli"
 )
 
 var ConfigPath string

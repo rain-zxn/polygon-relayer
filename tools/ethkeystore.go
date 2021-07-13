@@ -18,13 +18,14 @@ package tools
 
 import (
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/polynetwork/eth_relayer/config"
-	"github.com/polynetwork/eth_relayer/log"
-	"math/big"
-	"strings"
+	"github.com/polynetwork/polygon-relayer/config"
+	"github.com/polynetwork/polygon-relayer/log"
 )
 
 type EthKeyStore struct {
