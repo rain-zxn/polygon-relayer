@@ -43,6 +43,7 @@ const (
 type ServiceConfig struct {
 	PolyConfig      *PolyConfig
 	ETHConfig       *ETHConfig
+	HeimdallConfig	*HeimdallConfig
 	BoltDbPath      string
 	RoutineNum      int64
 	TargetContracts []map[string]map[string][]uint64
@@ -65,6 +66,13 @@ type ETHConfig struct {
 	BlockConfig         uint64
 	HeadersPerBatch     int
 	MonitorInterval     uint64
+}
+
+type HeimdallConfig struct {
+	SpanStart	uint64
+	HeimdallRPCURL		string
+
+	TendermintRPCURL string
 }
 
 func ReadFile(fileName string) ([]byte, error) {

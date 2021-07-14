@@ -41,7 +41,7 @@ var StartForceHeight uint64
 
 func setupApp() *cli.App {
 	app := cli.NewApp()
-	app.Usage = "ETH relayer Service"
+	app.Usage = "Polygon relayer Service"
 	app.Action = startServer
 	app.Version = config.Version
 	app.Copyright = "Copyright in 2019 The Ontology Authors"
@@ -116,6 +116,10 @@ func startServer(ctx *cli.Context) {
 		log.Fatalf("db.NewWaitingDB error:%s", err)
 		return
 	}
+
+	// create tendermint sdk
+	// create heimdall sdk
+	
 
 	initPolyServer(servConfig, polySdk, ethereumsdk, boltDB)
 	initETHServer(servConfig, polySdk, ethereumsdk, boltDB)

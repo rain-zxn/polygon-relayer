@@ -33,6 +33,8 @@ var (
 	BKTCheck  = []byte("Check")
 	BKTRetry  = []byte("Retry")
 	BKTHeight = []byte("Height")
+
+	BKTSpan = []byte("Span") //bor block height => spanId, span data
 )
 
 type BoltDB struct {
@@ -88,6 +90,38 @@ func NewBoltDB(filePath string) (*BoltDB, error) {
 	}
 
 	return w, nil
+}
+
+func (w *BoltDB) Put(name []byte, k []byte, v []byte) error {
+	w.rwlock.Lock()
+	defer w.rwlock.Unlock()
+
+	return w.db.Update(func(btx *bolt.Tx) error {
+		bucket := btx.Bucket(name)
+		err := bucket.Put(k, v)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (w *BoltDB) Get(name []byte, k []byte) []byte {
+	w.rwlock.RLock()
+	defer w.rwlock.RUnlock()
+
+	var v []byte
+	_ = w.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(name)
+		raw := bkt.Get(k)
+		if len(raw) == 0 {
+			return nil
+		}
+		//h = binary.LittleEndian.Uint32(raw)
+		v = raw
+		return nil
+	})
+	return v
 }
 
 func (w *BoltDB) PutCheck(txHash string, v []byte) error {

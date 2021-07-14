@@ -48,6 +48,23 @@ type RestClient struct {
 	restClient *http.Client
 }
 
+// addr must not ends with /
+func NewRestClientHost(addr string) *RestClient {
+	return &RestClient{
+		Addr: addr,
+		restClient: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConnsPerHost:   5,
+				DisableKeepAlives:     false,
+				IdleConnTimeout:       time.Second * 300,
+				ResponseHeaderTimeout: time.Second * 300,
+				TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			},
+			Timeout: time.Second * 300,
+		},
+	}
+}
+
 func NewRestClient() *RestClient {
 	return &RestClient{
 		restClient: &http.Client{
@@ -71,6 +88,19 @@ func (self *RestClient) SetAddr(addr string) *RestClient {
 func (self *RestClient) SetRestClient(restClient *http.Client) *RestClient {
 	self.restClient = restClient
 	return self
+}
+
+func (self *RestClient) Get(path string) ([]byte, error) {
+	resp, err := self.restClient.Get(self.Addr + path)
+	if err != nil {
+		return nil, fmt.Errorf("rest_client.Get request:%s error:%s", self.Addr + path, err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("rest_client.Get response body error:%s", err)
+	}
+	return body, nil
 }
 
 func (self *RestClient) SendRestRequest(addr string, data []byte) ([]byte, error) {

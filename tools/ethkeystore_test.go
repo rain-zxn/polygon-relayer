@@ -16,9 +16,9 @@
  */
 package tools
 
-import (
+/* import (
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/polynetwork/eth_relayer/config"
+	"github.com/polynetwork/polygon-relayer/config"
 	"testing"
 )
 
@@ -34,4 +34,4 @@ func TestETHSigner_SignTransaction(t *testing.T) {
 	if v.BitLen()+r.BitLen()+s.BitLen() <= 0 {
 		t.Fatal("failed to sign")
 	}
-}
+} */
