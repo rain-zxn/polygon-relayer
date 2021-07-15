@@ -11,7 +11,7 @@ Polygon Relayer is an important character of Poly cross-chain interactive protoc
 ```shell
 git clone https://github.com/polynetwork/polygon-relayer.git
 cd polygon-relayer
-go build -o polygon-relayer main.go
+CGO_ENABLED=0 go build -o polygon-relayer main.go
 ```
 
 After building the source code successfully,  you should see the executable program `polygon-relayer`. 

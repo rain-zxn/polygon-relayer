@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
 )
 
 // Validator heimdall validator

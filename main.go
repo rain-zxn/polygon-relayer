@@ -151,7 +151,7 @@ func waitToExit() {
 }
 
 func initETHServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
-	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB)
+	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.HeimdallConfig.TendermintRPCURL)
 	if err != nil {
 		log.Error("initETHServer - eth service start err: %s", err.Error())
 		return

@@ -115,6 +115,7 @@ func (w *BoltDB) Get(name []byte, k []byte) []byte {
 		bkt := tx.Bucket(name)
 		raw := bkt.Get(k)
 		if len(raw) == 0 {
+			v = nil
 			return nil
 		}
 		//h = binary.LittleEndian.Uint32(raw)

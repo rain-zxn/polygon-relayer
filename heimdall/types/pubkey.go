@@ -4,14 +4,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/crypto"
-	"github.com/tendermint/tendermint/crypto/secp256k1"
-	tmTypes "github.com/tendermint/tendermint/types"
+	abci "github.com/christianxiao/tendermint/abci/types"
+	"github.com/christianxiao/tendermint/crypto"
+	"github.com/christianxiao/tendermint/crypto/secp256k1"
+	tmTypes "github.com/christianxiao/tendermint/types"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/maticnetwork/bor/common"
+	"github.com/maticnetwork/bor/common/hexutil"
 )
 
 // PubKey pubkey

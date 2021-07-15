@@ -20,9 +20,14 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"strconv"
+	"strings"
+
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -31,9 +36,6 @@ import (
 	"github.com/ontio/ontology-crypto/keypair"
 	"github.com/ontio/ontology-crypto/sm2"
 	"github.com/polynetwork/poly/common"
-	"math/big"
-	"strconv"
-	"strings"
 )
 
 type jsonError struct {
@@ -98,6 +100,18 @@ type blockRsp struct {
 	Result  *types.Header `json:"result,omitempty"`
 	Error   *jsonError    `json:"error,omitempty"`
 	Id      uint          `json:"id"`
+}
+
+// Uint64ToBigEndian - marshals uint64 to a bigendian byte slice so it can be sorted
+func Uint64ToBigEndian(i uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, i)
+	return b
+}
+
+func BigEndianToUint64(array []byte) uint64 {
+	num := binary.BigEndian.Uint64(array)
+	return num
 }
 
 func GetNodeHeader(url string, restClient *RestClient, height uint64) ([]byte, error) {

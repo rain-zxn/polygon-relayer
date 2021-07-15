@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdk "github.com/polynetwork/polygon-relayer/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"gopkg.in/yaml.v2"
 )
