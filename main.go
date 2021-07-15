@@ -31,6 +31,8 @@ import (
 	"github.com/polynetwork/polygon-relayer/log"
 	"github.com/polynetwork/polygon-relayer/manager"
 	"github.com/urfave/cli"
+
+	"github.com/polynetwork/polygon-relayer/cosmos-relayer/service"
 )
 
 var ConfigPath string
@@ -117,13 +119,22 @@ func startServer(ctx *cli.Context) {
 		return
 	}
 
-	// create tendermint sdk
-	// create heimdall sdk
-	
+	// init heimdall server
+	service.StartListen()
+	service.StartRelay()
+
+	// init span listen
 
 	initPolyServer(servConfig, polySdk, ethereumsdk, boltDB)
 	initETHServer(servConfig, polySdk, ethereumsdk, boltDB)
 	waitToExit()
+}
+
+func initSpan(servConfig, boltDB *db.BoltDB) error {
+	// start current
+	
+
+	// start from start
 }
 
 func setUpPoly(poly *sdk.PolySdk, RpcAddr string) error {
@@ -156,6 +167,11 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ether
 		log.Error("initETHServer - eth service start err: %s", err.Error())
 		return
 	}
+
+	// start save spanId => bor height map
+	go mgr.TendermintClient.MonitorSpanLatestRoutine(servConfig.HeimdallConfig.SpanInterval)
+	go mgr.TendermintClient.MonitorSpanHisRoutine(servConfig.HeimdallConfig.SpanStart)
+
 	go mgr.MonitorChain()
 	go mgr.MonitorDeposit()
 	go mgr.CheckDeposit()

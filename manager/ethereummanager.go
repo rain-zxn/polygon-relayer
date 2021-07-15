@@ -146,7 +146,7 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 	log.Infof("NewETHManager - poly address: %s", signer.Address.ToBase58())
 
-	tclient, err := NewTendermintClient(tendermintRPCURL)
+	tclient, err := NewTendermintClient(tendermintRPCURL, boltDB)
 	if err != nil {
 		log.Errorf("ethereummanager.New - NewTendermintClient error, address: %s, error: %s", tendermintRPCURL, err.Error())
 	}
@@ -262,14 +262,6 @@ func (this *EthereumManager) handleNewBlock(height uint64) bool {
 
 func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *ethtypes.Header) (*types.HeaderWithOptionalProof, error) {
 	// Polygon: add heimdall header and proof 
-	// get span id from key value db, bor height => spanId
-	dbkeybytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(dbkeybytes, height)
-	spanIdBytes := this.db.Get(db.BKTSpan, dbkeybytes)
-	if spanIdBytes == nil {
-		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId error, on height :%d failed", height)
-	}
-
 	statusRes, err := this.TendermintClient.RPCHttp.Status()
 	if err != nil {
 		return nil, err
@@ -277,7 +269,10 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	hHeight := statusRes.SyncInfo.LatestBlockHeight
 
 	// get span data, heimdall header, proof
-	spanId := tools.BigEndianToUint64(spanIdBytes)
+	spanId, err := this.TendermintClient.GetSpanIdByBor(height)
+	if err != nil {
+		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId error, on height :%d failed", height)
+	}
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight - 1)
 	if err != nil {
 		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on height :%d, id: %d, error: %s", 

@@ -70,6 +70,8 @@ type ETHConfig struct {
 
 type HeimdallConfig struct {
 	SpanStart	uint64
+	SpanInterval uint64
+	
 	HeimdallRPCURL		string
 
 	TendermintRPCURL string

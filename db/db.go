@@ -21,10 +21,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/boltdb/bolt"
+	"github.com/polynetwork/polygon-relayer/tools"
 )
 
 const MAX_NUM = 1000
@@ -89,6 +91,17 @@ func NewBoltDB(filePath string) (*BoltDB, error) {
 		return nil, err
 	}
 
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(BKTSpan)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	return w, nil
 }
 
@@ -104,6 +117,26 @@ func (w *BoltDB) Put(name []byte, k []byte, v []byte) error {
 		}
 		return nil
 	})
+}
+
+func (w *BoltDB) PutUint64(name []byte, k uint64, v []byte) error {
+	w.rwlock.Lock()
+	defer w.rwlock.Unlock()
+
+	return w.db.Update(func(btx *bolt.Tx) error {
+		bucket := btx.Bucket(name)
+		kbs := tools.Uint64ToBigEndian(k)
+		err2 := bucket.Put(kbs, v)
+		if err2 != nil {
+			return err2
+		}
+		return nil
+	})
+}
+
+type KeyValue struct {
+	K uint64
+	V []byte
 }
 
 func (w *BoltDB) Get(name []byte, k []byte) []byte {
@@ -123,6 +156,37 @@ func (w *BoltDB) Get(name []byte, k []byte) []byte {
 		return nil
 	})
 	return v
+}
+
+func (w *BoltDB) GetAllUint64(name []byte) ([]*KeyValue, error) {
+	w.rwlock.Lock()
+	defer w.rwlock.Unlock()
+
+	checkMap := make([]*KeyValue, 0)
+	err := w.db.Update(func(tx *bolt.Tx) error {
+		bw := tx.Bucket(name)
+		bw.ForEach(func(k, v []byte) error {
+			_k := make([]byte, len(k))
+			_v := make([]byte, len(v))
+			copy(_k, k)
+			copy(_v, v)
+			checkMap = append(checkMap, &KeyValue{
+				K: tools.BigEndianToUint64(_k),
+				V: _v,
+			})
+
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(checkMap, func(i, j int) bool {
+		return checkMap[i].K > checkMap[j].K
+	})
+	return checkMap, nil
 }
 
 func (w *BoltDB) PutCheck(txHash string, v []byte) error {
