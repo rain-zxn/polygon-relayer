@@ -73,20 +73,16 @@ type TendermintConfig struct {
 	SpanInterval uint64
 
 	CosmosRpcAddr        string
-	CosmosWallet         string 
-	CosmosWalletPwd      string 
 	CosmosStartHeight    int64  
 	CosmosListenInterval int    
 
 	PolyRpcAddr        string 
 	PolyWallet         string 
-	PolyWalletPwd      string 
-	PolyStartHeight    uint32 
-	PolyListenInterval int    
+	PolyWalletPwd      string   
 
-	SideChainId    uint64 `json:"side_chain_id"`
+	SideChainId    uint64 
 
-	ConfirmTimeout int    `json:"confirm_timeout"`
+	ConfirmTimeout int
 }
 
 func ReadFile(fileName string) ([]byte, error) {
@@ -119,6 +115,11 @@ func NewServiceConfig(configFilePath string) *ServiceConfig {
 		log.Errorf("NewServiceConfig: failed, err: %s", err)
 		return nil
 	}
+
+	servConfig.TendermintConfig.PolyRpcAddr = servConfig.PolyConfig.RestURL
+	servConfig.TendermintConfig.PolyWallet = servConfig.PolyConfig.WalletFile
+	servConfig.TendermintConfig.PolyWalletPwd = servConfig.PolyConfig.WalletPwd
+
 
 	for k, v := range servConfig.ETHConfig.KeyStorePwdSet {
 		delete(servConfig.ETHConfig.KeyStorePwdSet, k)

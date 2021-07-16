@@ -94,6 +94,8 @@ func CosmosListen() {
 				Type: context.TyHeader,
 				Hdrs: make([]*cosmos.CosmosHeader, 0),
 			}
+
+			// TODO: this for loop will cost much time if two much headers between left and right
 			for h := left + 1; h <= right; h++ {
 				infoArrTemp, err := checkCosmosHeight(h, hdr, infoArr, &right)
 				if err != nil {
