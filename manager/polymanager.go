@@ -36,7 +36,7 @@ import (
 	"github.com/ontio/ontology-crypto/signature"
 	"github.com/polynetwork/eth-contracts/go_abi/eccd_abi"
 	"github.com/polynetwork/eth-contracts/go_abi/eccm_abi"
-	sdk "github.com/polynetwork/poly-go-sdk"
+	sdk "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 	"github.com/polynetwork/poly/common"
 	"github.com/polynetwork/poly/common/password"
 	vconfig "github.com/polynetwork/poly/consensus/vbft/config"

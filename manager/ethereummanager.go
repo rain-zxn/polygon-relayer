@@ -42,6 +42,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	sdk "github.com/polynetwork/poly-go-sdk"
+	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 	"github.com/polynetwork/poly/common"
 	"github.com/polynetwork/poly/native/service/cross_chain_manager/eth"
 	scom "github.com/polynetwork/poly/native/service/header_sync/common"
@@ -104,7 +105,7 @@ type EthereumManager struct {
 	currentHeight  uint64
 	forceHeight    uint64
 	lockerContract *bind.BoundContract
-	polySdk        *sdk.PolySdk
+	polySdk        *sdkp.PolySdk
 	polySigner     *sdk.Account
 	exitChan       chan int
 	header4sync    [][]byte
@@ -114,7 +115,7 @@ type EthereumManager struct {
 	TendermintClient *TendermintClient
 }
 
-func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdk.PolySdk, client *ethclient.Client, 
+func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client, 
 	boltDB *db.BoltDB,
 	tendermintRPCURL string) (*EthereumManager, error) {
 	var wallet *sdk.Wallet

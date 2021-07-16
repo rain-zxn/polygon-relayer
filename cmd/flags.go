@@ -24,6 +24,11 @@ import (
 )
 
 var (
+	TestLocalFlag = cli.BoolFlag{
+		Name:  "testlocal",
+		Usage: "For local test, do not send to outside",
+	}
+
 	LogLevelFlag = cli.UintFlag{
 		Name:  "loglevel",
 		Usage: "Set the log level to `<level>` (0~6). 0:Trace 1:Debug 2:Info 3:Warn 4:Error 5:Fatal 6:MaxLevel",

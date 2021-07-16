@@ -20,8 +20,9 @@ package context
 import (
 	"sync"
 
-	poly_go_sdk "github.com/polynetwork/poly-go-sdk"
 	"github.com/polynetwork/poly/core/types"
+	poly_go_sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
+	poly_go_sdk "github.com/polynetwork/poly-go-sdk"
 
 	tcrypto "github.com/christianxiao/tendermint/crypto"
 	rpcclient "github.com/christianxiao/tendermint/rpc/client"
@@ -46,7 +47,7 @@ var (
 	RCtx = &Ctx{}
 )
 
-func InitCtx(conf *config.TendermintConfig, db *db.BoltDB) error {
+func InitCtx(conf *config.TendermintConfig, db *db.BoltDB, poly *poly_go_sdkp.PolySdk) error {
 	var (
 		err error
 	)
@@ -61,11 +62,7 @@ func InitCtx(conf *config.TendermintConfig, db *db.BoltDB) error {
 
 	RCtx.CMCdc = codec.New()
 
-	// prepare Poly staff
-	RCtx.Poly = poly_go_sdk.NewPolySdk()
-	if err := setUpPoly(RCtx.Poly); err != nil {
-		return err
-	}
+	RCtx.Poly = poly
 	if RCtx.PolyAcc, err = GetAccountByPassword(RCtx.Poly, conf.PolyWallet, []byte(conf.PolyWalletPwd)); err != nil {
 		return err
 	}
@@ -89,12 +86,12 @@ type Ctx struct {
 	CMAcc    ctypes.AccAddress
 	CMSeq    *CosmosSeq
 	CMAccNum uint64
-	
-	CMGas    uint64
-	CMCdc    *codec.Codec
+
+	CMGas uint64
+	CMCdc *codec.Codec
 
 	// Poly chain
-	Poly    *poly_go_sdk.PolySdk
+	Poly    *poly_go_sdkp.PolySdk
 	PolyAcc *poly_go_sdk.Account
 
 	// DB

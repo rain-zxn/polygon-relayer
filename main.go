@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	sdk "github.com/polynetwork/poly-go-sdk"
+	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 
 	"github.com/polynetwork/polygon-relayer/cmd"
 	"github.com/polynetwork/polygon-relayer/config"
@@ -57,6 +58,7 @@ func setupApp() *cli.App {
 		cmd.EthStartForceFlag,
 		cmd.PolyStartFlag,
 		cmd.LogDir,
+		cmd.TestLocalFlag,
 	}
 	app.Commands = []cli.Command{}
 	app.Before = func(context *cli.Context) error {
@@ -89,6 +91,8 @@ func startServer(ctx *cli.Context) {
 		PolyStartHeight = polyStart
 	}
 
+	testLocal := ctx.GlobalBool(cmd.GetFlagName(cmd.TestLocalFlag))
+
 	// read config
 	servConfig := config.NewServiceConfig(ConfigPath)
 	if servConfig == nil {
@@ -103,6 +107,7 @@ func startServer(ctx *cli.Context) {
 		log.Errorf("startServer - failed to setup poly sdk: %v", err)
 		return
 	}
+	polySdkp := sdkp.NewPolySdkp(polySdk, testLocal)
 
 	// create ethereum sdk
 	ethereumsdk, err := ethclient.Dial(servConfig.ETHConfig.RestURL)
@@ -124,15 +129,15 @@ func startServer(ctx *cli.Context) {
 
 	// init heimdall service
 	// all tools and info hold by context object.
-	if err = cosctx.InitCtx(servConfig.TendermintConfig, boltDB); err != nil {
+	if err = cosctx.InitCtx(servConfig.TendermintConfig, boltDB, polySdkp); err != nil {
 		log.Fatalf("failed to init context: %v", err)
 		panic(err)
 	}
 	service.StartListen()
 	service.StartRelay()
 
-	initPolyServer(servConfig, polySdk, ethereumsdk, boltDB)
-	initETHServer(servConfig, polySdk, ethereumsdk, boltDB)
+	initPolyServer(servConfig, polySdkp, ethereumsdk, boltDB)
+	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB)
 	waitToExit()
 }
 
@@ -160,7 +165,7 @@ func waitToExit() {
 	<-exit
 }
 
-func initETHServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
+func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
 	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr)
 	if err != nil {
 		log.Error("initETHServer - eth service start err: %s", err.Error())
@@ -176,7 +181,7 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ether
 	go mgr.CheckDeposit()
 }
 
-func initPolyServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
+func initPolyServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
 	mgr, err := manager.NewPolyManager(servConfig, uint32(PolyStartHeight), polysdk, ethereumsdk, boltDB)
 	if err != nil {
 		log.Error("initPolyServer - PolyServer service start failed: %v", err)

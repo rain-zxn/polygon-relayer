@@ -20,10 +20,11 @@ package context
 import (
 	"fmt"
 
-	"github.com/polynetwork/poly-go-sdk"
+	poly_go_sdk "github.com/polynetwork/poly-go-sdk"
+	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 )
 
-func GetAccountByPassword(sdk *poly_go_sdk.PolySdk, path string, pwd []byte) (*poly_go_sdk.Account, error) {
+func GetAccountByPassword(sdk *sdkp.PolySdk, path string, pwd []byte) (*poly_go_sdk.Account, error) {
 	wallet, err := sdk.OpenWallet(path)
 	if err != nil {
 		return nil, fmt.Errorf("open wallet error: %v", err)
@@ -33,14 +34,4 @@ func GetAccountByPassword(sdk *poly_go_sdk.PolySdk, path string, pwd []byte) (*p
 		return nil, fmt.Errorf("getDefaultAccount error: %v", err)
 	}
 	return user, nil
-}
-
-func setUpPoly(poly *poly_go_sdk.PolySdk) error {
-	poly.NewRpcClient().SetAddress(RCtx.Conf.PolyRpcAddr)
-	hdr, err := poly.GetHeaderByHeight(0)
-	if err != nil {
-		return err
-	}
-	poly.SetChainId(hdr.ChainID)
-	return nil
 }
