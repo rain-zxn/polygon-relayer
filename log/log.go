@@ -93,9 +93,9 @@ var LogSpanH *Logger
 func init() {
 	//Default print to console
 	Log = InitLog(InfoLog, Stdout)
-	LogTender = InitLog(InfoLog, Stdout, PATH + "tendermint.log")
-	LogSpanL = InitLog(InfoLog, Stdout, PATH + "span_latest.log")
-	LogSpanH = InitLog(InfoLog, Stdout, PATH + "span_history.log")
+	LogTender = InitLog(InfoLog, Stdout, PATH + "tendermint_")
+	LogSpanL = InitLog(InfoLog, Stdout, PATH + "span_latest_")
+	LogSpanH = InitLog(InfoLog, Stdout, PATH + "span_history_")
 }
 
 func ClosePrintLog() error {

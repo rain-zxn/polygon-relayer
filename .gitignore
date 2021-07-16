@@ -13,3 +13,6 @@ config-debug-dev.json
 keystore/*
 keystore
 polygon-relayer
+
+*/logoutput
+*/logoutput/**
