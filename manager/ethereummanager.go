@@ -194,7 +194,7 @@ func (this *EthereumManager) MonitorChain() {
 					log.Infof("handle confirmed eth Block height: %d", this.currentHeight)
 				}
 				blockHandleResult = this.handleNewBlock(this.currentHeight + 1)
-				if blockHandleResult == false {
+				if !blockHandleResult {
 					break
 				}
 				this.currentHeight++
@@ -272,6 +272,9 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	spanId, err := this.TendermintClient.GetSpanIdByBor(height)
 	if err != nil {
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId error, on height :%d failed", height)
+	}
+	if spanId == 0 {
+		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight - 1)
 	if err != nil {

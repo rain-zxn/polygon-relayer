@@ -18,20 +18,20 @@
 package context
 
 import (
-	"fmt"
-	"github.com/cosmos/cosmos-sdk/codec"
-	ctypes "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/x/auth"
-	"github.com/cosmos/cosmos-sdk/x/auth/exported"
-	"github.com/polynetwork/cosmos-relayer/db"
-	"github.com/polynetwork/poly-go-sdk"
-	"github.com/polynetwork/poly/core/types"
-	"github.com/polynetwork/poly/native/service/header_sync/cosmos"
-	tcrypto "github.com/christianxiao/tendermint/crypto"
-	"github.com/christianxiao/tendermint/rpc/client"
-	rpchttp "github.com/christianxiao/tendermint/rpc/client/http"
-	rpctypes "github.com/christianxiao/tendermint/rpc/core/types"
 	"sync"
+
+	poly_go_sdk "github.com/polynetwork/poly-go-sdk"
+	"github.com/polynetwork/poly/core/types"
+
+	tcrypto "github.com/christianxiao/tendermint/crypto"
+	rpcclient "github.com/christianxiao/tendermint/rpc/client"
+	rpctypes "github.com/christianxiao/tendermint/rpc/core/types"
+
+	"github.com/polynetwork/polygon-relayer/config"
+	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
+	ctypes "github.com/polynetwork/polygon-relayer/cosmos-sdk/types"
+	"github.com/polynetwork/polygon-relayer/db"
+	cosmos "github.com/polynetwork/polygon-relayer/types"
 )
 
 type InfoType int
@@ -46,55 +46,20 @@ var (
 	RCtx = &Ctx{}
 )
 
-func InitCtx(conf *Conf) error {
+func InitCtx(conf *config.TendermintConfig, db *db.BoltDB) error {
 	var (
-		err         error
-		exportedAcc exported.Account
-		gasPrice    ctypes.DecCoins
+		err error
 	)
 
 	RCtx.Conf = conf
-	setCosmosEnv(conf.CosmosChainId)
 
 	// channels
-	RCtx.ToCosmos = make(chan *PolyInfo, ChanBufSize)
 	RCtx.ToPoly = make(chan *CosmosInfo, ChanBufSize)
 
 	// prepare COSMOS staff
-	RCtx.CMRpcCli, err = rpchttp.New(conf.CosmosRpcAddr, "/websocket")
-	if err != nil {
-		return fmt.Errorf("failed to new Tendermint Cli: %v", err)
-	}
-	if RCtx.CMPrivk, RCtx.CMAcc, err = GetCosmosPrivateKey(conf.CosmosWallet, []byte(conf.CosmosWalletPwd)); err != nil {
-		return err
-	}
-	RCtx.CMCdc = NewCodecForRelayer()
-	rawParam, err := RCtx.CMCdc.MarshalJSON(auth.NewQueryAccountParams(RCtx.CMAcc))
-	if err != nil {
-		return err
-	}
-	res, err := RCtx.CMRpcCli.ABCIQueryWithOptions(QueryAccPath, rawParam, client.ABCIQueryOptions{Prove: true})
-	if err != nil {
-		return err
-	}
-	if !res.Response.IsOK() {
-		return fmt.Errorf("failed to get response for accout-query: %v", res.Response)
-	}
-	if err := RCtx.CMCdc.UnmarshalJSON(res.Response.Value, &exportedAcc); err != nil {
-		return fmt.Errorf("unmarshal query-account-resp failed, err: %v", err)
-	}
-	RCtx.CMSeq = &CosmosSeq{
-		lock: sync.Mutex{},
-		val:  exportedAcc.GetSequence(),
-	}
-	RCtx.CMAccNum = exportedAcc.GetAccountNumber()
-	if gasPrice, err = ctypes.ParseDecCoins(conf.CosmosGasPrice); err != nil {
-		return err
-	}
-	if RCtx.CMFees, err = CalcCosmosFees(gasPrice, conf.CosmosGas); err != nil {
-		return err
-	}
-	RCtx.CMGas = conf.CosmosGas
+	RCtx.CMRpcCli = rpcclient.NewHTTP(conf.CosmosRpcAddr, "/websocket")
+
+	RCtx.CMCdc = codec.New()
 
 	// prepare Poly staff
 	RCtx.Poly = poly_go_sdk.NewPolySdk()
@@ -105,36 +70,26 @@ func InitCtx(conf *Conf) error {
 		return err
 	}
 
-	RCtx.Db, err = db.NewDatabase(conf.DBPath, RCtx.CMCdc)
-	if err != nil {
-		return err
-	}
-
-	if RCtx.CMStatus, err = NewCosmosStatus(); err != nil {
-		panic(fmt.Errorf("failed to new cosmos_status: %v", err))
-	}
-	if RCtx.PolyStatus, err = NewPolyStatus(); err != nil {
-		panic(fmt.Errorf("failed to new poly_status: %v", err))
-	}
+	RCtx.Db = db
 
 	return nil
 }
 
 type Ctx struct {
 	// configuration
-	Conf *Conf
+	Conf *config.TendermintConfig
 
 	// To transfer cross chain tx from listening to relaying
 	ToCosmos chan *PolyInfo
 	ToPoly   chan *CosmosInfo
 
 	// Cosmos
-	CMRpcCli *rpchttp.HTTP
+	CMRpcCli *rpcclient.HTTP
 	CMPrivk  tcrypto.PrivKey
 	CMAcc    ctypes.AccAddress
 	CMSeq    *CosmosSeq
 	CMAccNum uint64
-	CMFees   ctypes.Coins
+	
 	CMGas    uint64
 	CMCdc    *codec.Codec
 
@@ -143,11 +98,7 @@ type Ctx struct {
 	PolyAcc *poly_go_sdk.Account
 
 	// DB
-	Db *db.Database
-
-	// status for relayed tx
-	CMStatus   *CosmosStatus
-	PolyStatus *PolyStatus
+	Db *db.BoltDB
 }
 
 type PolyInfo struct {

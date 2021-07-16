@@ -23,16 +23,19 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/urfave/cli"
+
 	"github.com/ethereum/go-ethereum/ethclient"
+
 	sdk "github.com/polynetwork/poly-go-sdk"
+
 	"github.com/polynetwork/polygon-relayer/cmd"
 	"github.com/polynetwork/polygon-relayer/config"
 	"github.com/polynetwork/polygon-relayer/db"
 	"github.com/polynetwork/polygon-relayer/log"
 	"github.com/polynetwork/polygon-relayer/manager"
-	"github.com/urfave/cli"
-
 	"github.com/polynetwork/polygon-relayer/cosmos-relayer/service"
+	cosctx "github.com/polynetwork/polygon-relayer/cosmos-relayer/context"
 )
 
 var ConfigPath string
@@ -119,22 +122,18 @@ func startServer(ctx *cli.Context) {
 		return
 	}
 
-	// init heimdall server
+	// init heimdall service
+	// all tools and info hold by context object.
+	if err = cosctx.InitCtx(servConfig.TendermintConfig, boltDB); err != nil {
+		log.Fatalf("failed to init context: %v", err)
+		panic(err)
+	}
 	service.StartListen()
 	service.StartRelay()
-
-	// init span listen
 
 	initPolyServer(servConfig, polySdk, ethereumsdk, boltDB)
 	initETHServer(servConfig, polySdk, ethereumsdk, boltDB)
 	waitToExit()
-}
-
-func initSpan(servConfig, boltDB *db.BoltDB) error {
-	// start current
-	
-
-	// start from start
 }
 
 func setUpPoly(poly *sdk.PolySdk, RpcAddr string) error {
@@ -162,15 +161,15 @@ func waitToExit() {
 }
 
 func initETHServer(servConfig *config.ServiceConfig, polysdk *sdk.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
-	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.HeimdallConfig.TendermintRPCURL)
+	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr)
 	if err != nil {
 		log.Error("initETHServer - eth service start err: %s", err.Error())
 		return
 	}
 
 	// start save spanId => bor height map
-	go mgr.TendermintClient.MonitorSpanLatestRoutine(servConfig.HeimdallConfig.SpanInterval)
-	go mgr.TendermintClient.MonitorSpanHisRoutine(servConfig.HeimdallConfig.SpanStart)
+	go mgr.TendermintClient.MonitorSpanLatestRoutine(servConfig.TendermintConfig.SpanInterval)
+	go mgr.TendermintClient.MonitorSpanHisRoutine(servConfig.TendermintConfig.SpanStart)
 
 	go mgr.MonitorChain()
 	go mgr.MonitorDeposit()

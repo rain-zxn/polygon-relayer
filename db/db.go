@@ -37,6 +37,14 @@ var (
 	BKTHeight = []byte("Height")
 
 	BKTSpan = []byte("Span") //bor block height => spanId, span data
+
+	// tendermint
+	PolyState       = []byte("poly")
+	COSMOSState     = []byte("cosmos")
+	CosmosReProve   = []byte("cosmos_reprove")
+	PolyReProve     = []byte("poly_reprove")
+	CosmosStatusKey = []byte("cosmos_status")
+	PolyStatusKey   = []byte("poly_status")
 )
 
 type BoltDB struct {
@@ -102,6 +110,73 @@ func NewBoltDB(filePath string) (*BoltDB, error) {
 		return nil, err
 	}
 
+	// tendermint
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(PolyState)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(COSMOSState)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(CosmosReProve)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(PolyReProve)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(CosmosStatusKey)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = db.Update(func(btx *bolt.Tx) error {
+		_, err := btx.CreateBucketIfNotExists(PolyStatusKey)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	return w, nil
 }
 
@@ -132,6 +207,23 @@ func (w *BoltDB) PutUint64(name []byte, k uint64, v []byte) error {
 		}
 		return nil
 	})
+}
+
+func (w *BoltDB) GetUint64(name []byte, k uint64) ([]byte, error) {
+	w.rwlock.RLock()
+	defer w.rwlock.RUnlock()
+
+	var val []byte
+	_ = w.db.View(func(btx *bolt.Tx) error {
+		bucket := btx.Bucket(name)
+		kbs := tools.Uint64ToBigEndian(k)
+		val = bucket.Get(kbs)
+		if val == nil {
+			return nil
+		}
+		return nil
+	})
+	return val, nil
 }
 
 type KeyValue struct {
@@ -340,4 +432,40 @@ func (w *BoltDB) Close() {
 	w.rwlock.Lock()
 	w.db.Close()
 	w.rwlock.Unlock()
+}
+
+
+func (db *BoltDB) SetCosmosHeight(height int64) error {
+	db.rwlock.RLock()
+	defer db.rwlock.RUnlock()
+
+	val := make([]byte, 8)
+	binary.LittleEndian.PutUint64(val, uint64(height))
+	return db.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(COSMOSState)
+		err := bucket.Put(COSMOSState, val)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (db *BoltDB) GetCosmosHeight() int64 {
+	db.rwlock.RLock()
+	defer db.rwlock.RUnlock()
+
+	var height uint64
+	_ = db.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(COSMOSState)
+		val := bucket.Get(COSMOSState)
+		if val == nil {
+			height = 0
+			return nil
+		}
+		height = binary.LittleEndian.Uint64(val)
+		return nil
+	})
+
+	return int64(height)
 }

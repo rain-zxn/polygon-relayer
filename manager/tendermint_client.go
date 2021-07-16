@@ -9,9 +9,7 @@ import (
 
 	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
 	"github.com/polynetwork/polygon-relayer/db"
-	"github.com/polynetwork/polygon-relayer/tools"
 	"github.com/polynetwork/polygon-relayer/types"
-	"github.com/tendermint/tendermint/libs/json"
 
 	abcitypes "github.com/christianxiao/tendermint/abci/types"
 	rpcclient "github.com/christianxiao/tendermint/rpc/client"
@@ -62,7 +60,6 @@ func (this *TendermintClient) GetSpanIdByBor(bor uint64) (uint64, error) {
 	for _, v := range all {
 		var startEnd = new(StartEnd)
 		json.Unmarshal(v.V, startEnd)
-		// TODO: CHECK if inclusive
 		if startEnd.Start <= bor && bor <= startEnd.End {
 			return v.K, nil
 		}
@@ -71,19 +68,29 @@ func (this *TendermintClient) GetSpanIdByBor(bor uint64) (uint64, error) {
 }
 
 func (this *TendermintClient) MonitorSpanLatestRoutine(seconds uint64) {
-	fetchBlockTicker := time.NewTicker(time.Duration(seconds) * time.Second)
+	log.LogSpanL.Infof("tendermint_client.MonitorSpanLatestRoutine - start, Duration %s", seconds)
 
+	fetchBlockTicker := time.NewTicker(time.Duration(seconds) * time.Second)
 	for {
 		select {
 		case <-fetchBlockTicker.C:
 			h, err := this.GetLatestHeight()
 			if err != nil {
-				log.Errorf("MonitorSpan - GetLatestHeight error, err: %s", err.Error())
+				log.LogSpanL.Errorf("MonitorSpan - GetLatestHeight error, err: %s", err.Error())
 				continue
 			}
 			span, err := this.GetLatestSpan(h)
 			if err != nil {
-				log.Errorf("MonitorSpan - cannot get eth node height, err: %s", err.Error())
+				log.LogSpanL.Errorf("MonitorSpan - cannot get span from node height: %s err: %s", h, err.Error())
+				continue
+			}
+
+			//check db
+			val, err := this.db.GetUint64(db.BKTSpan, span.ID)
+			if err != nil {
+				log.LogSpanL.Errorf("MonitorSpan - db.GetUint64 error, spanId %s  error: %s", span.ID, err.Error())
+			}
+			if len(val) != 0 {
 				continue
 			}
 
@@ -94,12 +101,12 @@ func (this *TendermintClient) MonitorSpanLatestRoutine(seconds uint64) {
 
 			vjson, err := json.Marshal(se)
 			if err != nil {
-				log.Errorf("MonitorSpan - Marshal, err: %s", err.Error())
+				log.LogSpanL.Errorf("MonitorSpan - Marshal, err: %s", err.Error())
 				continue
 			}
 			err2 := this.db.PutUint64(db.BKTSpan, span.ID, vjson)
 			if err2 != nil {
-				log.Errorf("MonitorSpan - db.PutUint64 err: %s", err2.Error())
+				log.LogSpanL.Errorf("MonitorSpan - db.PutUint64 err: %s", err2.Error())
 				continue
 			}
 
@@ -110,10 +117,12 @@ func (this *TendermintClient) MonitorSpanLatestRoutine(seconds uint64) {
 }
 
 func (this *TendermintClient) MonitorSpanHisRoutine(start uint64) {
+	log.LogSpanH.Infof("tendermint_client.MonitorSpanHisRoutine - start, start %s", start)
+
 	for true {
         all, err := this.db.GetAllUint64(db.BKTSpan)
 		if err != nil {
-			log.Errorf("MonitorSpanHisRoutine.GetAllUint64 - error, err: %s", err.Error())
+			log.LogSpanH.Errorf("MonitorSpanHisRoutine - error, err: %s", err.Error())
 			time.Sleep(60 * time.Second)
 			continue
 		}
@@ -129,7 +138,7 @@ func (this *TendermintClient) MonitorSpanHisRoutine(start uint64) {
 			if !ok {
 				_, span, err := this.GetSpanRes(i, 0)
 				if err != nil {
-					log.Errorf("MonitorSpanHisRoutine.GetAllUint64 - GetSpanRes error, id %d, err: %s", i, err.Error())
+					log.LogSpanH.Errorf("MonitorSpanHisRoutine - GetSpanRes error, id %d, err: %s", i, err.Error())
 					time.Sleep(60 * time.Second)
 					continue
 				}
@@ -141,12 +150,12 @@ func (this *TendermintClient) MonitorSpanHisRoutine(start uint64) {
 	
 				vjson, err := json.Marshal(se)
 				if err != nil {
-					log.Errorf("MonitorSpanHisRoutine - Marshal, err: %s", err.Error())
+					log.LogSpanH.Errorf("MonitorSpanHisRoutine - Marshal, err: %s", err.Error())
 					continue
 				}
 				err2 := this.db.PutUint64(db.BKTSpan, span.ID, vjson)
 				if err2 != nil {
-					log.Errorf("MonitorSpanHisRoutine - db.PutUint64 err: %s", err2.Error())
+					log.LogSpanH.Errorf("MonitorSpanHisRoutine - db.PutUint64 err: %s", err2.Error())
 					continue
 				}
 			}
@@ -177,7 +186,7 @@ func (this *TendermintClient) GetLatestSpan(block int64) (*hmTypes.Span, error) 
 	var span = new(hmTypes.Span)
 	err2 := this.Codec.UnmarshalBinaryBare(res.Response.Value[:], span)
 	if err2 != nil {
-		log.Errorf("tendermint_client.GetSpan - unmarshal failed, id %s, block %s, %s\n", id, block, err.Error())
+		log.Errorf("tendermint_client.GetSpan - unmarshal failed, block %s, %s\n", block, err.Error())
 		return nil, err2
 	}
 

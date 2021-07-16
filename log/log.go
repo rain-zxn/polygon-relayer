@@ -86,10 +86,33 @@ func GetGID() uint64 {
 }
 
 var Log *Logger
+var LogTender *Logger
+var LogSpanL *Logger
+var LogSpanH *Logger
 
 func init() {
 	//Default print to console
-	InitLog(InfoLog, Stdout)
+	Log = InitLog(InfoLog, Stdout)
+	LogTender = InitLog(InfoLog, Stdout, PATH + "tendermint.log")
+	LogSpanL = InitLog(InfoLog, Stdout, PATH + "span_latest.log")
+	LogSpanH = InitLog(InfoLog, Stdout, PATH + "span_history.log")
+}
+
+func ClosePrintLog() error {
+	var err error
+	if Log.logFile != nil {
+		err = Log.logFile.Close()
+	}
+	if LogTender.logFile != nil {
+		err = LogTender.logFile.Close()
+	}
+	if LogSpanL.logFile != nil {
+		err = LogSpanL.logFile.Close()
+	}
+	if LogSpanH.logFile != nil {
+		err = LogSpanH.logFile.Close()
+	}
+	return err
 }
 
 func LevelName(level int) string {
@@ -339,7 +362,7 @@ func Init(a ...interface{}) {
 	InitLog(InfoLog, a...)
 }
 
-func InitLog(logLevel int, a ...interface{}) {
+func InitLog(logLevel int, a ...interface{}) *Logger {
 	writers := []io.Writer{}
 	var logFile *os.File
 	var err error
@@ -364,7 +387,7 @@ func InitLog(logLevel int, a ...interface{}) {
 		}
 	}
 	fileAndStdoutWrite := io.MultiWriter(writers...)
-	Log = New(fileAndStdoutWrite, "", log.Ldate|log.Lmicroseconds, logLevel, logFile)
+	return New(fileAndStdoutWrite, "", log.Ldate|log.Lmicroseconds, logLevel, logFile)
 }
 
 func GetLogFileSize() (int64, error) {
@@ -396,10 +419,3 @@ func CheckIfNeedNewFile() bool {
 	}
 }
 
-func ClosePrintLog() error {
-	var err error
-	if Log.logFile != nil {
-		err = Log.logFile.Close()
-	}
-	return err
-}

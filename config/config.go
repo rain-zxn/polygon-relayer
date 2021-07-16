@@ -43,7 +43,7 @@ const (
 type ServiceConfig struct {
 	PolyConfig      *PolyConfig
 	ETHConfig       *ETHConfig
-	HeimdallConfig	*HeimdallConfig
+	TendermintConfig	*TendermintConfig
 	BoltDbPath      string
 	RoutineNum      int64
 	TargetContracts []map[string]map[string][]uint64
@@ -68,13 +68,25 @@ type ETHConfig struct {
 	MonitorInterval     uint64
 }
 
-type HeimdallConfig struct {
+type TendermintConfig struct {
 	SpanStart	uint64
 	SpanInterval uint64
-	
-	HeimdallRPCURL		string
 
-	TendermintRPCURL string
+	CosmosRpcAddr        string
+	CosmosWallet         string 
+	CosmosWalletPwd      string 
+	CosmosStartHeight    int64  
+	CosmosListenInterval int    
+
+	PolyRpcAddr        string 
+	PolyWallet         string 
+	PolyWalletPwd      string 
+	PolyStartHeight    uint32 
+	PolyListenInterval int    
+
+	SideChainId    uint64 `json:"side_chain_id"`
+
+	ConfirmTimeout int    `json:"confirm_timeout"`
 }
 
 func ReadFile(fileName string) ([]byte, error) {
