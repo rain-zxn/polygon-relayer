@@ -48,6 +48,7 @@ func ToPolyRoutine() {
 	for val := range ctx.ToPoly {
 		switch val.Type {
 		case context.TyHeader:
+			log.LogTender.Infof("relayer.ToPolyRoutine - handleCosmosHdrs, lenth: %d", len(val.Hdrs))
 			if err := handleCosmosHdrs(val.Hdrs); err != nil {
 				panic(err)
 			}
@@ -55,6 +56,7 @@ func ToPolyRoutine() {
 			// go handleCosmosTx(val.Tx, val.Hdrs[0])
 			continue
 		case context.TyUpdateHeight:
+			log.LogTender.Infof("relayer.ToPolyRoutine - TyUpdateHeight, height: %d", val.Height)
 			go func() {
 				if err := ctx.Db.SetCosmosHeight(val.Height); err != nil {
 					log.LogTender.Errorf("failed to update cosmos height: %v", err)
@@ -68,12 +70,12 @@ func ToPolyRoutine() {
 // Ploygon tx committing headers confirmed. This guarantee that the next
 // cross-chain txs next to relay can be proved on Poly.
 func handleCosmosHdrs(headers []*mcosmos.CosmosHeader) error {
-	for i := 0; i < len(headers); i += context.HdrLimitPerBatch {
+	for i := 0; i < len(headers); i += ctx.Conf.HeadersPerBatch {
 		var hdrs []*mcosmos.CosmosHeader
-		if i+context.HdrLimitPerBatch > len(headers) {
+		if i+ctx.Conf.HeadersPerBatch > len(headers) {
 			hdrs = headers[i:]
 		} else {
-			hdrs = headers[i : i+context.HdrLimitPerBatch]
+			hdrs = headers[i : i+ctx.Conf.HeadersPerBatch]
 		}
 		info := make([]string, len(hdrs))
 		raw := make([][]byte, len(hdrs))
@@ -85,6 +87,7 @@ func handleCosmosHdrs(headers []*mcosmos.CosmosHeader) error {
 			}
 			raw[i] = r
 			info[i] = fmt.Sprintf("(hash: %s, height: %d)", h.Header.Hash().String(), h.Header.Height)
+			log.LogTender.Info("[handleCosmosHdr] 2" + info[i])
 		}
 
 	SYNC_RETRY:
@@ -97,9 +100,10 @@ func handleCosmosHdrs(headers []*mcosmos.CosmosHeader) error {
 				goto SYNC_RETRY
 			}
 			if strings.Contains(err.Error(), context.NoUsefulHeaders) {
-				log.LogTender.Errorf("[handleCosmosHdr] your headers could be wrong or already committed: headers: [ %s ]",
-					strings.Join(info, ", "))
-				return nil
+				log.LogTender.Errorf("[handleCosmosHdr] your headers could be wrong or already committed: headers: [ %s ], error: %w",
+					strings.Join(info, ", "), err)
+				return fmt.Errorf("[handleCosmosHdr] your headers could be wrong or already committed: headers: [ %s ], error: %w",
+				strings.Join(info, ", "), err)
 			}
 			log.LogTender.Errorf("[handleCosmosHdr] failed to relay cosmos header to Poly: %v", err)
 			return err

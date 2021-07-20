@@ -33,6 +33,8 @@ import (
 	ctypes "github.com/polynetwork/polygon-relayer/cosmos-sdk/types"
 	"github.com/polynetwork/polygon-relayer/db"
 	cosmos "github.com/polynetwork/polygon-relayer/types"
+
+	cryptoamino "github.com/christianxiao/tendermint/crypto/encoding/amino"
 )
 
 type InfoType int
@@ -60,7 +62,9 @@ func InitCtx(conf *config.TendermintConfig, db *db.BoltDB, poly *poly_go_sdkp.Po
 	// prepare COSMOS staff
 	RCtx.CMRpcCli = rpcclient.NewHTTP(conf.CosmosRpcAddr, "/websocket")
 
-	RCtx.CMCdc = codec.New()
+	cdc := codec.New()
+	cryptoamino.RegisterAmino(cdc)
+	RCtx.CMCdc = cdc
 
 	RCtx.Poly = poly
 	if RCtx.PolyAcc, err = GetAccountByPassword(RCtx.Poly, conf.PolyWallet, []byte(conf.PolyWalletPwd)); err != nil {

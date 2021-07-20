@@ -23,7 +23,6 @@ import (
 
 const (
 	PerPage                 = 100 // (0, 100]
-	HdrLimitPerBatch        = 50
 	QueryConsensusPath      = "/custom/" + "headersync" + "/" + "consensus_peers"
 	// TODO: change ccm.ModuleName
 	CosmosCrossChainModName = "bor"

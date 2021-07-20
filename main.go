@@ -28,15 +28,16 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	sdk "github.com/polynetwork/poly-go-sdk"
+	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
 	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 
 	"github.com/polynetwork/polygon-relayer/cmd"
 	"github.com/polynetwork/polygon-relayer/config"
+	cosctx "github.com/polynetwork/polygon-relayer/cosmos-relayer/context"
+	"github.com/polynetwork/polygon-relayer/cosmos-relayer/service"
 	"github.com/polynetwork/polygon-relayer/db"
 	"github.com/polynetwork/polygon-relayer/log"
 	"github.com/polynetwork/polygon-relayer/manager"
-	"github.com/polynetwork/polygon-relayer/cosmos-relayer/service"
-	cosctx "github.com/polynetwork/polygon-relayer/cosmos-relayer/context"
 )
 
 var ConfigPath string
@@ -100,6 +101,10 @@ func startServer(ctx *cli.Context) {
 		return
 	}
 
+	if servConfig.ETHConfig.StartHeight > 0 {
+		StartHeight = servConfig.ETHConfig.StartHeight
+	}
+
 	// create poly sdk
 	polySdk := sdk.NewPolySdk()
 	err := setUpPoly(polySdk, servConfig.PolyConfig.RestURL)
@@ -111,6 +116,7 @@ func startServer(ctx *cli.Context) {
 
 	// create ethereum sdk
 	ethereumsdk, err := ethclient.Dial(servConfig.ETHConfig.RestURL)
+	log.Infof("init eth client - start url : %s", servConfig.ETHConfig.RestURL)
 	if err != nil {
 		log.Errorf("startServer - cannot dial sync node, err: %s", err)
 		return
@@ -137,7 +143,7 @@ func startServer(ctx *cli.Context) {
 	service.StartRelay()
 
 	initPolyServer(servConfig, polySdkp, ethereumsdk, boltDB)
-	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB)
+	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc)
 	waitToExit()
 }
 
@@ -165,8 +171,8 @@ func waitToExit() {
 	<-exit
 }
 
-func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
-	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr)
+func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB, cdc *codec.Codec) {
+	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr, cdc)
 	if err != nil {
 		log.Error("initETHServer - eth service start err: %s", err.Error())
 		return
@@ -174,8 +180,9 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethe
 
 	// start save spanId => bor height map
 	go mgr.TendermintClient.MonitorSpanLatestRoutine(servConfig.TendermintConfig.SpanInterval)
-	go mgr.TendermintClient.MonitorSpanHisRoutine(servConfig.TendermintConfig.SpanStart)
+	go mgr.TendermintClient.MonitorSpanHisRoutine(uint64(servConfig.TendermintConfig.SpanStart))
 
+	// TODO: uncomment this
 	go mgr.MonitorChain()
 	go mgr.MonitorDeposit()
 	go mgr.CheckDeposit()

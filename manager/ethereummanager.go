@@ -33,6 +33,8 @@ import (
 	"github.com/polynetwork/eth-contracts/go_abi/eccm_abi"
 	common2 "github.com/polynetwork/poly/native/service/cross_chain_manager/common"
 	"github.com/polynetwork/polygon-relayer/config"
+	"github.com/polynetwork/polygon-relayer/cosmos-relayer/service"
+	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
 	"github.com/polynetwork/polygon-relayer/db"
 	"github.com/polynetwork/polygon-relayer/types"
 
@@ -42,16 +44,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	sdk "github.com/polynetwork/poly-go-sdk"
-	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 	"github.com/polynetwork/poly/common"
 	"github.com/polynetwork/poly/native/service/cross_chain_manager/eth"
 	scom "github.com/polynetwork/poly/native/service/header_sync/common"
 	autils "github.com/polynetwork/poly/native/service/utils"
 	"github.com/polynetwork/polygon-relayer/log"
+	sdkp "github.com/polynetwork/polygon-relayer/poly_go_sdk"
 	"github.com/polynetwork/polygon-relayer/tools"
 
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
+
+var Sprint uint64 = 64
 
 type CrossTransfer struct {
 	txIndex string
@@ -115,9 +119,10 @@ type EthereumManager struct {
 	TendermintClient *TendermintClient
 }
 
-func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client, 
+func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client,
 	boltDB *db.BoltDB,
-	tendermintRPCURL string) (*EthereumManager, error) {
+	tendermintRPCURL string,
+	cdc *codec.Codec) (*EthereumManager, error) {
 	var wallet *sdk.Wallet
 	var err error
 	if !common.FileExisted(servconfig.PolyConfig.WalletFile) {
@@ -147,23 +152,23 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 	log.Infof("NewETHManager - poly address: %s", signer.Address.ToBase58())
 
-	tclient, err := NewTendermintClient(tendermintRPCURL, boltDB)
+	tclient, err := NewTendermintClient(tendermintRPCURL, boltDB, cdc)
 	if err != nil {
 		log.Errorf("ethereummanager.New - NewTendermintClient error, address: %s, error: %s", tendermintRPCURL, err.Error())
 	}
 
 	mgr := &EthereumManager{
-		config:        servconfig,
-		exitChan:      make(chan int),
-		currentHeight: startheight,
-		forceHeight:   startforceheight,
-		restClient:    tools.NewRestClient(),
-		client:        client,
-		polySdk:       ontsdk,
-		polySigner:    signer,
-		header4sync:   make([][]byte, 0),
-		crosstx4sync:  make([]*CrossTransfer, 0),
-		db:            boltDB,
+		config:           servconfig,
+		exitChan:         make(chan int),
+		currentHeight:    startheight,
+		forceHeight:      startforceheight,
+		restClient:       tools.NewRestClient(),
+		client:           client,
+		polySdk:          ontsdk,
+		polySigner:       signer,
+		header4sync:      make([][]byte, 0),
+		crosstx4sync:     make([]*CrossTransfer, 0),
+		db:               boltDB,
 		TendermintClient: tclient,
 	}
 	err = mgr.init()
@@ -194,7 +199,13 @@ func (this *EthereumManager) MonitorChain() {
 				if this.currentHeight%10 == 0 {
 					log.Infof("handle confirmed eth Block height: %d", this.currentHeight)
 				}
-				blockHandleResult = this.handleNewBlock(this.currentHeight + 1)
+				
+				err := this.handleNewBlock(this.currentHeight + 1)
+				if err != nil {
+					log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight + 1, err)
+				}
+
+				blockHandleResult = err == nil
 				if !blockHandleResult {
 					break
 				}
@@ -248,39 +259,42 @@ func (this *EthereumManager) findLastestHeight() uint64 {
 	}
 }
 
-func (this *EthereumManager) handleNewBlock(height uint64) bool {
-	ret := this.handleBlockHeader(height)
-	if !ret {
-		log.Errorf("handleNewBlock - handleBlockHeader on height :%d failed", height)
-		return false
+func (this *EthereumManager) handleNewBlock(height uint64) error {
+	err := this.handleBlockHeader(height)
+	if err != nil {
+		return fmt.Errorf("handleNewBlock - handleBlockHeader on height :%d failed, error: %w", height, err)
 	}
-	ret = this.fetchLockDepositEvents(height, this.client)
+	ret := this.fetchLockDepositEvents(height, this.client)
 	if !ret {
-		log.Errorf("handleNewBlock - fetchLockDepositEvents on height :%d failed", height)
+		return fmt.Errorf("handleNewBlock - fetchLockDepositEvents on height :%d failed", height)
 	}
-	return true
+	return nil
 }
 
 func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *ethtypes.Header) (*types.HeaderWithOptionalProof, error) {
-	// Polygon: add heimdall header and proof 
-	statusRes, err := this.TendermintClient.RPCHttp.Status()
+	// Polygon: add heimdall header and proof
+/* 	statusRes, err := this.TendermintClient.RPCHttp.Status()
 	if err != nil {
 		return nil, err
 	}
-	hHeight := statusRes.SyncInfo.LatestBlockHeight
+	hHeight := statusRes.SyncInfo.LatestBlockHeight */
+	hHeight, err := service.GetCosmosHeightFromPoly()
+	if err != nil {
+		return nil, err
+	}
 
 	// get span data, heimdall header, proof
 	spanId, err := this.TendermintClient.GetSpanIdByBor(height)
 	if err != nil {
-		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId error, on height :%d failed", height)
+		return nil, err
 	}
 	if spanId == 0 {
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
-	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight - 1)
+	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
-		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on height :%d, id: %d, error: %s", 
-		height, spanId, err.Error())
+		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on height :%d, id: %d, error: %w",
+			height, spanId, err)
 		return nil, err
 	}
 
@@ -294,49 +308,59 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	headerWithOptionalProof := &types.HeaderWithOptionalProof{}
 	headerWithOptionalProof.Header = *eth
 
-	cosmosProof := &types.CosmosProof{}
-	
-	cosmosProofValue := &types.CosmosProofValue{}
-	kp := merkle.KeyPath{}
-	kp = kp.AppendKey([]byte("bor"), merkle.KeyEncodingURL)
-	kp = kp.AppendKey(spanRes.Key, merkle.KeyEncodingURL)
-	
-	cosmosProofValue.Kp = kp.String()
-	cosmosProofValue.Value = spanRes.GetValue()
+	// only sprint end needs to send proof
+	isSprintEnd := (eth.Number.Uint64()+1)%Sprint == 0
+	if isSprintEnd {
+		cosmosProof := &types.CosmosProof{}
 
-	cosmosProof.Value = *cosmosProofValue
-	cosmosProof.Proof = *spanRes.Proof
-	cosmosProof.Header = *cosmosHeader
+		cosmosProofValue := &types.CosmosProofValue{}
+		kp := merkle.KeyPath{}
+		kp = kp.AppendKey([]byte("bor"), merkle.KeyEncodingURL)
+		kp = kp.AppendKey(spanRes.Key, merkle.KeyEncodingURL)
 
-	headerWithOptionalProof.Proof, err = json.Marshal(cosmosProof)
-	if err != nil {
-		return nil, err
+		cosmosProofValue.Kp = kp.String()
+		cosmosProofValue.Value = spanRes.GetValue()
+
+		cosmosProof.Value = *cosmosProofValue
+		cosmosProof.Proof = *spanRes.Proof
+		cosmosProof.Header = *cosmosHeader
+
+		headerWithOptionalProof.Proof, err = this.TendermintClient.Codec.MarshalBinaryBare(cosmosProof)
+		if err != nil {
+			return nil, err
+		}
+	}else{
+		headerWithOptionalProof.Proof = nil
 	}
 
 	return headerWithOptionalProof, nil
 }
 
-func (this *EthereumManager) handleBlockHeader(height uint64) bool {
+func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	hdreth, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(height)))
 	if err != nil {
-		log.Errorf("handleBlockHeader - GetNodeHeader on height :%d failed", height)
-		return false
+		return fmt.Errorf("handleBlockHeader - GetNodeHeader on height: %d failed, error: %w", height, err)
 	}
 
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
+	if err == ErrSpanNotFound {
+		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
+		height, err)
+	}
 	if err != nil {
-		log.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %s /n", 
-		height, err.Error())
-		return false
+		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
+		height, err)
 	}
 
 	rawHdr, _ := json.Marshal(hdr)
+	log.Infof("handleBlockHeader - makeHeaderWithOptionalProof height: %d", height)
+
 	rawPolyHdr, _ := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
 		append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(height)...))
 	if len(rawPolyHdr) == 0 || !bytes.Equal(rawPolyHdr, hdr.Hash().Bytes()) {
 		this.header4sync = append(this.header4sync, rawHdr)
 	}
-	return true
+	return nil
 }
 
 func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethclient.Client) bool {

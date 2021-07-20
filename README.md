@@ -16,6 +16,10 @@ CGO_ENABLED=0 go build -o polygon-relayer main.go
 
 After building the source code successfully,  you should see the executable program `polygon-relayer`. 
 
+### Mock integrated test
+```shell
+./polygon-relayer --cliconfig ./env/prod/config.json --testlocal
+```
 ### Build Docker Image
 
 ```

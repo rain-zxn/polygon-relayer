@@ -80,7 +80,7 @@ var (
 	LogDir = cli.StringFlag{
 		Name:  "logdir",
 		Usage: "log directory",
-		Value: "./Log/",
+		Value: "./output/log/",
 	}
 
 	//EncryptFlag = cli.StringFlag{

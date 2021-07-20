@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -54,6 +55,11 @@ type BoltDB struct {
 }
 
 func NewBoltDB(filePath string) (*BoltDB, error) {
+	err := os.MkdirAll(filePath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	
 	if !strings.Contains(filePath, ".bin") {
 		filePath = path.Join(filePath, "bolt.bin")
 	}

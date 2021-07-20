@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	ETH_MONITOR_INTERVAL  = 15 * time.Second
+	ETH_MONITOR_INTERVAL  = 1 * time.Second
 	POLY_MONITOR_INTERVAL = 1 * time.Second
 
 	ETH_USEFUL_BLOCK_NUM     = 3
@@ -58,6 +58,7 @@ type PolyConfig struct {
 
 type ETHConfig struct {
 	SideChainId         uint64
+	StartHeight 		uint64
 	RestURL             string
 	ECCMContractAddress string
 	ECCDContractAddress string
@@ -69,11 +70,12 @@ type ETHConfig struct {
 }
 
 type TendermintConfig struct {
-	SpanStart	uint64
 	SpanInterval uint64
+	SpanStart uint64
 
 	CosmosRpcAddr        string
 	CosmosStartHeight    int64  
+	HeadersPerBatch      int
 	CosmosListenInterval int    
 
 	PolyRpcAddr        string 
