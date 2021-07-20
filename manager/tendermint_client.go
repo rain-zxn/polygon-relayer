@@ -91,7 +91,7 @@ func (this *TendermintClient) GetSpanIdByBor(bor uint64) (uint64, error) {
 
 		allStrt = append(allStrt, &SpanStartEnd{v.K, startEnd})
 
-		if startEnd.Start <= bor && bor <= startEnd.End {
+		if startEnd.Start <= (bor+1) && (bor+1) <= startEnd.End {
 			return v.K, nil
 		}
 	}
@@ -243,23 +243,23 @@ func (this *TendermintClient) GetLatestSpan(block int64) (*hmTypes.Span, error) 
 }
 
 // block: 0 = latest
-func (this *TendermintClient) GetSpanRes(id uint64, block int64) (*abcitypes.ResponseQuery, *hmTypes.Span, error) {
+func (this *TendermintClient) GetSpanRes(id uint64, heimHeight int64) (*abcitypes.ResponseQuery, *hmTypes.Span, error) {
 	res, err := this.RPCHttp.ABCIQueryWithOptions(
 		"/store/bor/key",
 		GetSpanKey(id),
-		rpcclient.ABCIQueryOptions{Prove: true, Height: block})
+		rpcclient.ABCIQueryOptions{Prove: true, Height: heimHeight})
 	if err != nil {
-		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, id %d, block %d, %w", id, block, err)
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, id %d, heimHeight %d, %w", id, heimHeight, err)
 	}
 
 	if res.Response.Value == nil {
-		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, id %d, block %d, %w", id, block, err)
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, res.Response.Value is nil, id %d, heimHeight %d", id, heimHeight)
 	}
 
 	var span = new(hmTypes.Span)
 	err2 := this.Codec.UnmarshalBinaryBare(res.Response.Value[:], span)
 	if err2 != nil {
-		return nil, nil, fmt.Errorf("tendermint_client.GetSpan - unmarshal failed, id %d, block %d, %w", id, block, err)
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpan - unmarshal failed, id %d, heimHeight %d, %w", id, heimHeight, err)
 	}
 
 	return &res.Response, span, nil

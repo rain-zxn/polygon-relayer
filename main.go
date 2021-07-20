@@ -182,7 +182,6 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethe
 	go mgr.TendermintClient.MonitorSpanLatestRoutine(servConfig.TendermintConfig.SpanInterval)
 	go mgr.TendermintClient.MonitorSpanHisRoutine(uint64(servConfig.TendermintConfig.SpanStart))
 
-	// TODO: uncomment this
 	go mgr.MonitorChain()
 	go mgr.MonitorDeposit()
 	go mgr.CheckDeposit()

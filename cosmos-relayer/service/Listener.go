@@ -99,7 +99,6 @@ func CosmosListen() {
 				Hdrs: make([]*cosmos.CosmosHeader, 0),
 			}
 
-			// TODO: this for loop will cost much time if two much headers between left and right
 			for h := left + 1; h <= right; h++ {
 				infoArrTemp, err := checkCosmosHeight(h, hdr, infoArr)
 				if err != nil {
@@ -157,6 +156,22 @@ func CosmosListen() {
 			left = right */
 		}
 	}
+}
+
+func GetBestCosmosHeightForBor() (int64, error) {	
+	currHeight, err := GetCosmosHeightFromPoly()
+	if err != nil {
+		return 0, err
+	}
+
+	log.LogTender.Infof("beforeCosmosListen, ( cosmos height on Poly: %d )", currHeight)
+
+	if dbh := ctx.Db.GetCosmosHeight(); dbh > currHeight {
+		log.LogTender.Infof("beforeCosmosListen, ( cosmos height in DB: %d )", dbh)
+		currHeight = dbh
+	}
+	
+	return currHeight, nil
 }
 
 // Prepare start height and ticker when init service

@@ -199,10 +199,11 @@ func (this *EthereumManager) MonitorChain() {
 				if this.currentHeight%10 == 0 {
 					log.Infof("handle confirmed eth Block height: %d", this.currentHeight)
 				}
-				
+
 				err := this.handleNewBlock(this.currentHeight + 1)
+
 				if err != nil {
-					log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight + 1, err)
+					log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight+1, err)
 				}
 
 				blockHandleResult = err == nil
@@ -272,13 +273,25 @@ func (this *EthereumManager) handleNewBlock(height uint64) error {
 }
 
 func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *ethtypes.Header) (*types.HeaderWithOptionalProof, error) {
+	headerWithOptionalProof := &types.HeaderWithOptionalProof{}
+	headerWithOptionalProof.Header = *eth
+	headerWithOptionalProof.Proof = nil
+
+	// construct bor headers with proof to poly
+	// only sprint end needs to send proof
+	isSprintEnd := (eth.Number.Uint64()+1)%Sprint == 0
+	if !isSprintEnd {
+		return headerWithOptionalProof, nil
+	}
+
 	// Polygon: add heimdall header and proof
 /* 	statusRes, err := this.TendermintClient.RPCHttp.Status()
 	if err != nil {
 		return nil, err
 	}
 	hHeight := statusRes.SyncInfo.LatestBlockHeight */
-	hHeight, err := service.GetCosmosHeightFromPoly()
+
+	hHeight, err := service.GetBestCosmosHeightForBor()
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +306,8 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
-		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on height :%d, id: %d, error: %w",
-			height, spanId, err)
+		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on hHeight :%d, id: %d, error: %w",
+			hHeight-1, spanId, err)
 		return nil, err
 	}
 
@@ -305,32 +318,24 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 
 	// construct bor headers with proof to poly
-	headerWithOptionalProof := &types.HeaderWithOptionalProof{}
-	headerWithOptionalProof.Header = *eth
-
 	// only sprint end needs to send proof
-	isSprintEnd := (eth.Number.Uint64()+1)%Sprint == 0
-	if isSprintEnd {
-		cosmosProof := &types.CosmosProof{}
+	cosmosProof := &types.CosmosProof{}
 
-		cosmosProofValue := &types.CosmosProofValue{}
-		kp := merkle.KeyPath{}
-		kp = kp.AppendKey([]byte("bor"), merkle.KeyEncodingURL)
-		kp = kp.AppendKey(spanRes.Key, merkle.KeyEncodingURL)
+	cosmosProofValue := &types.CosmosProofValue{}
+	kp := merkle.KeyPath{}
+	kp = kp.AppendKey([]byte("bor"), merkle.KeyEncodingURL)
+	kp = kp.AppendKey(spanRes.Key, merkle.KeyEncodingURL)
 
-		cosmosProofValue.Kp = kp.String()
-		cosmosProofValue.Value = spanRes.GetValue()
+	cosmosProofValue.Kp = kp.String()
+	cosmosProofValue.Value = spanRes.GetValue()
 
-		cosmosProof.Value = *cosmosProofValue
-		cosmosProof.Proof = *spanRes.Proof
-		cosmosProof.Header = *cosmosHeader
+	cosmosProof.Value = *cosmosProofValue
+	cosmosProof.Proof = *spanRes.Proof
+	cosmosProof.Header = *cosmosHeader
 
-		headerWithOptionalProof.Proof, err = this.TendermintClient.Codec.MarshalBinaryBare(cosmosProof)
-		if err != nil {
-			return nil, err
-		}
-	}else{
-		headerWithOptionalProof.Proof = nil
+	headerWithOptionalProof.Proof, err = this.TendermintClient.Codec.MarshalBinaryBare(cosmosProof)
+	if err != nil {
+		return nil, err
 	}
 
 	return headerWithOptionalProof, nil
@@ -345,11 +350,11 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
 	if err == ErrSpanNotFound {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
-		height, err)
+			height, err)
 	}
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
-		height, err)
+			height, err)
 	}
 
 	rawHdr, _ := json.Marshal(hdr)
@@ -441,6 +446,8 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 }
 
 func (this *EthereumManager) commitHeader() int {
+	log.Infof("commitHeader bor start - send transaction to poly chain len %d", len(this.header4sync))
+
 	tx, err := this.polySdk.Native.Hs.SyncBlockHeader(
 		this.config.ETHConfig.SideChainId,
 		this.polySigner.Address,
@@ -450,11 +457,11 @@ func (this *EthereumManager) commitHeader() int {
 	if err != nil {
 		errDesc := err.Error()
 		if strings.Contains(errDesc, "get the parent block failed") || strings.Contains(errDesc, "missing required field") {
-			log.Warnf("commitHeader - send transaction to poly chain err: %s", errDesc)
+			log.Warnf("commitHeader bor - send transaction to poly chain err: %w", err)
 			this.rollBackToCommAncestor()
 			return 0
 		} else {
-			log.Errorf("commitHeader - send transaction to poly chain err: %s", errDesc)
+			log.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
 			return 1
 		}
 	}
@@ -467,7 +474,17 @@ func (this *EthereumManager) commitHeader() int {
 			break
 		}
 	}
-	log.Infof("commitHeader - send transaction %s to poly chain and confirmed on height %d", tx.ToHexString(), h)
+
+	snycheight := this.findLastestHeight()
+	height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
+	if err != nil {
+		return 1
+	}
+
+	log.Infof("commitHeader bor success - send transaction %s to poly chain and confirmed on poly height %d, snyced bor height: %d, lastest bor height: %d, diff: %d",
+		tx.ToHexString(), h,
+		snycheight, height, height-snycheight)
+
 	this.header4sync = make([][]byte, 0)
 	return 0
 }
@@ -504,7 +521,7 @@ func (this *EthereumManager) MonitorDeposit() {
 				continue
 			}
 			snycheight := this.findLastestHeight()
-			log.Log.Info("MonitorDeposit from eth - snyced eth height", snycheight, "eth height", height, "diff", height-snycheight)
+			log.Infof("MonitorDeposit from eth - snyced bor height: %d, lastest bor height: %d, diff: %d", snycheight, height, height-snycheight)
 			this.handleLockDepositEvents(snycheight)
 		case <-this.exitChan:
 			return
