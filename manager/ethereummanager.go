@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/polynetwork/polygon-relayer/cosmos-sdk/codec"
 	"github.com/polynetwork/polygon-relayer/db"
 	"github.com/polynetwork/polygon-relayer/types"
+	mytypes "github.com/polynetwork/polygon-relayer/types"
 
 	"github.com/christianxiao/tendermint/crypto/merkle"
 
@@ -203,13 +205,16 @@ func (this *EthereumManager) MonitorChain() {
 				err := this.handleNewBlock(this.currentHeight + 1)
 
 				if err != nil {
-					log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight+1, err)
+					if errors.Is(err, mytypes.ErrSpanNotFound) {
+						log.Warnf("handleNewBlock error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", this.currentHeight+1, err)
+					} else {
+						log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight+1, err)
+					}
+					break
 				}
 
 				blockHandleResult = err == nil
-				if !blockHandleResult {
-					break
-				}
+
 				this.currentHeight++
 				// try to commit header if more than 50 headers needed to be syned
 				if len(this.header4sync) >= this.config.ETHConfig.HeadersPerBatch {
@@ -285,12 +290,6 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 
 	// Polygon: add heimdall header and proof
-/* 	statusRes, err := this.TendermintClient.RPCHttp.Status()
-	if err != nil {
-		return nil, err
-	}
-	hHeight := statusRes.SyncInfo.LatestBlockHeight */
-
 	hHeight, err := service.GetBestCosmosHeightForBor()
 	if err != nil {
 		return nil, err
@@ -306,9 +305,8 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
-		log.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on hHeight :%d, id: %d, error: %w",
+		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on hHeight :%d, id: %d, error: %w",
 			hHeight-1, spanId, err)
-		return nil, err
 	}
 
 	// get heimdall header, proof
@@ -348,10 +346,6 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	}
 
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
-	if err == ErrSpanNotFound {
-		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
-			height, err)
-	}
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
 			height, err)
@@ -460,12 +454,21 @@ func (this *EthereumManager) commitHeader() int {
 			log.Warnf("commitHeader bor - send transaction to poly chain err: %w", err)
 			this.rollBackToCommAncestor()
 			return 0
+		} else if strings.Contains(errDesc, "block validator is not right, next validator hash:") {
+			lenh := len(this.header4sync)
+			log.Warnf("commitHeader bor - send transaction to poly chain err, currentHeight: %d, restart from %d, error: %w",
+				this.currentHeight, this.currentHeight-uint64(lenh), err)
+			for i := 0; i < lenh; i++ {
+				this.currentHeight--
+			}
+			this.header4sync = make([][]byte, 0)
+			return 0
 		} else {
 			log.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
 			return 1
 		}
 	}
-	tick := time.NewTicker(100 * time.Millisecond)
+	tick := time.NewTicker(50 * time.Millisecond)
 	var h uint32
 	for range tick.C {
 		h, _ = this.polySdk.GetBlockHeightByTxHash(tx.ToHexString())

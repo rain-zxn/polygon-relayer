@@ -20,7 +20,6 @@ package manager
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -36,9 +35,9 @@ import (
 
 	hmTypes "github.com/polynetwork/polygon-relayer/heimdall/types"
 	"github.com/polynetwork/polygon-relayer/log"
-)
 
-var ErrSpanNotFound = errors.New("span not found in db")
+	mytypes "github.com/polynetwork/polygon-relayer/types"
+)
 
 type TendermintClient struct {
 	RPCHttp *rpcclient.HTTP
@@ -74,7 +73,7 @@ type StartEnd struct {
 }
 
 type SpanStartEnd struct {
-	ID uint64
+	ID       uint64
 	StartEnd *StartEnd
 }
 
@@ -97,9 +96,9 @@ func (this *TendermintClient) GetSpanIdByBor(bor uint64) (uint64, error) {
 	}
 
 	allStrtBytes, _ := json.MarshalIndent(allStrt, "", "    ")
-	log.LogSpanL.Errorf("DB GetSpanIdByBor: span not found! bor height: %d, db data: %s", bor, string(allStrtBytes))
+	log.LogSpanL.Warnf("DB GetSpanIdByBor: span not found! bor height: %d, db data: %s", bor, string(allStrtBytes))
 
-	return 0, ErrSpanNotFound
+	return 0, fmt.Errorf("DB GetSpanIdByBor: span not found! bor height: %d, db data: %s, error: %w", bor, string(allStrtBytes), mytypes.ErrSpanNotFound)
 }
 
 func (this *TendermintClient) MonitorSpanLatestRoutine(seconds uint64) {
@@ -249,11 +248,13 @@ func (this *TendermintClient) GetSpanRes(id uint64, heimHeight int64) (*abcitype
 		GetSpanKey(id),
 		rpcclient.ABCIQueryOptions{Prove: true, Height: heimHeight})
 	if err != nil {
-		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, id %d, heimHeight %d, %w", id, heimHeight, err)
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, spanID %d, heimHeight %d, %w", id, heimHeight, err)
 	}
 
 	if res.Response.Value == nil {
-		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, res.Response.Value is nil, id %d, heimHeight %d", id, heimHeight)
+		// The spanID is too new in old heimHeight
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, the spanID is too new in old heimHeight, res.Response.Value is nil, spanID %d, heimHeight %d, error: %w",
+			id, heimHeight, types.ErrSpanNotFound)
 	}
 
 	var span = new(hmTypes.Span)

@@ -92,7 +92,7 @@ var LogSpanH *Logger
 
 func init() {
 	//Default print to console
-	Log = InitLog(InfoLog, Stdout)
+	Log = InitLog(InfoLog, Stdout, PATH + "default_")
 	LogTender = InitLog(InfoLog, Stdout, PATH + "tendermint_")
 	LogSpanL = InitLog(InfoLog, Stdout, PATH + "span_latest_")
 	LogSpanH = InitLog(InfoLog, Stdout, PATH + "span_history_")

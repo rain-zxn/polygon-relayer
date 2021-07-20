@@ -18,6 +18,8 @@
 package types
 
 import (
+	"errors"
+
 	"github.com/christianxiao/tendermint/types"
 
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -30,6 +32,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+var ErrSpanNotFound = errors.New("span not found")
 
 // json marshal
 type HeaderWithOptionalProof struct {
