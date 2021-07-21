@@ -41,6 +41,7 @@ import (
 	mytypes "github.com/polynetwork/polygon-relayer/types"
 
 	"github.com/christianxiao/tendermint/crypto/merkle"
+	rpcclient "github.com/christianxiao/tendermint/rpc/client"
 
 	"context"
 
@@ -124,7 +125,8 @@ type EthereumManager struct {
 func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client,
 	boltDB *db.BoltDB,
 	tendermintRPCURL string,
-	cdc *codec.Codec) (*EthereumManager, error) {
+	cdc *codec.Codec,
+	tclientHttp *rpcclient.HTTP) (*EthereumManager, error) {
 	var wallet *sdk.Wallet
 	var err error
 	if !common.FileExisted(servconfig.PolyConfig.WalletFile) {
@@ -154,7 +156,7 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 	log.Infof("NewETHManager - poly address: %s", signer.Address.ToBase58())
 
-	tclient, err := NewTendermintClient(tendermintRPCURL, boltDB, cdc)
+	tclient, err := NewTendermintClient(tendermintRPCURL, boltDB, cdc, tclientHttp)
 	if err != nil {
 		log.Errorf("ethereummanager.New - NewTendermintClient error, address: %s, error: %s", tendermintRPCURL, err.Error())
 	}
@@ -181,57 +183,146 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 }
 
-func (this *EthereumManager) MonitorChain() {
-	fetchBlockTicker := time.NewTicker(time.Duration(this.config.ETHConfig.MonitorInterval) * time.Second)
-	var blockHandleResult bool
+func (this *EthereumManager) SyncCache(currentHeight uint64, ) error {
+
+	fetchBlockTicker := time.NewTicker(1 * time.Second)
 	for {
 		select {
 		case <-fetchBlockTicker.C:
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
-				log.Infof("MonitorChain - cannot get node height, err: %s", err)
+				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
 				continue
 			}
-			if height-this.currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
+			if height-currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
 				continue
 			}
-			log.Infof("MonitorChain - eth height is %d", height)
-			blockHandleResult = true
-			for this.currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-				if this.currentHeight%10 == 0 {
-					log.Infof("handle confirmed eth Block height: %d", this.currentHeight)
-				}
 
-				err := this.handleNewBlock(this.currentHeight + 1)
+			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
+				
+				err := this.handleBlockHeader(currentHeight)
+				log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
 
 				if err != nil {
 					if errors.Is(err, mytypes.ErrSpanNotFound) {
-						log.Warnf("handleNewBlock error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", this.currentHeight+1, err)
+						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight+1, err)
 					} else {
-						log.Errorf("handleNewBlock error - height: %d, error: %w", this.currentHeight+1, err)
+						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight+1, err)
 					}
 					break
 				}
 
-				blockHandleResult = err == nil
+				currentHeight++
+			}
+		case <-this.exitChan:
+			return nil
+		}
+	}
 
-				this.currentHeight++
+}
+
+func (this *EthereumManager) SyncHeaderToPoly() error {
+	currentHeight := this.currentHeight
+
+	fetchBlockTicker := time.NewTicker(time.Duration(this.config.ETHConfig.MonitorInterval) * time.Second)
+	for {
+		select {
+		case <-fetchBlockTicker.C:
+			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
+			if err != nil {
+				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
+				continue
+			}
+			if height-currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
+				continue
+			}
+			log.Infof("SyncHeaderToPoly - eth height is %d", height)
+
+			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
+				if currentHeight%10 == 0 {
+					log.Infof("SyncHeaderToPoly confirmed eth Block height: %d", currentHeight)
+				}
+
+				log.Debugf("bor time analyse - this.handleBlockHeader start, bor height: %d", height)
+				err := this.handleBlockHeader(currentHeight)
+				log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
+
+				if err != nil {
+					if errors.Is(err, mytypes.ErrSpanNotFound) {
+						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight+1, err)
+					} else {
+						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight+1, err)
+					}
+					break
+				}
+
+				currentHeight++
 				// try to commit header if more than 50 headers needed to be syned
-				if len(this.header4sync) >= this.config.ETHConfig.HeadersPerBatch {
-					if res := this.commitHeader(); res != 0 {
-						blockHandleResult = false
+				if len(this.header4sync) >= this.config.ETHConfig.HeadersPerBatch ||
+					(currentHeight == height-config.ETH_USEFUL_BLOCK_NUM-1 && len(this.header4sync) > 0) {
+					if err := this.commitHeader(&currentHeight); err != nil {
+						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") {
+							log.Warnf("SyncHeaderToPoly commit error: %w", err)
+						} else {
+							log.Errorf("SyncHeaderToPoly commit error: %w", err)
+						}
 						break
 					}
 				}
 			}
-			if blockHandleResult && len(this.header4sync) > 0 {
-				this.commitHeader()
-			}
+
 		case <-this.exitChan:
-			return
+			return nil
 		}
 	}
+
 }
+
+func (this *EthereumManager) SyncEventToPoly() error {
+	currentHeight := this.currentHeight
+
+	fetchBlockTicker := time.NewTicker(time.Duration(this.config.ETHConfig.MonitorInterval) * time.Second)
+
+	for {
+		select {
+		case <-fetchBlockTicker.C:
+			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
+			if err != nil {
+				log.Errorf("SyncEventToPoly - cannot get node height, err: %w", err)
+				continue
+			}
+			if height-currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
+				continue
+			}
+			log.Infof("SyncEventToPoly - eth height is %d", height)
+
+			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
+				if currentHeight%10 == 0 {
+					log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", currentHeight)
+				}
+
+				log.Debugf("bor time analyse - this.fetchLockDepositEvents start, bor height: %d", height)
+				ret := this.fetchLockDepositEvents(currentHeight, this.client)
+				log.Debugf("bor time analyse - this.fetchLockDepositEvents end  , bor height: %d", height)
+				if !ret {
+					log.Errorf("SyncEventToPoly - fetchLockDepositEvents on height :%d failed", height)
+				}
+
+				currentHeight++
+			}
+
+		case <-this.exitChan:
+			return nil
+		}
+	}
+
+}
+
+func (this *EthereumManager) MonitorChain() {
+	go this.SyncHeaderToPoly()
+	go this.SyncEventToPoly()
+}
+
 func (this *EthereumManager) init() error {
 	// get latest height
 	latestHeight := this.findLastestHeight()
@@ -266,11 +357,16 @@ func (this *EthereumManager) findLastestHeight() uint64 {
 }
 
 func (this *EthereumManager) handleNewBlock(height uint64) error {
+	log.Debugf("bor time analyse - this.handleBlockHeader start, bor height: %d", height)
 	err := this.handleBlockHeader(height)
+	log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
 	if err != nil {
 		return fmt.Errorf("handleNewBlock - handleBlockHeader on height :%d failed, error: %w", height, err)
 	}
+
+	log.Debugf("bor time analyse - this.fetchLockDepositEvents start, bor height: %d", height)
 	ret := this.fetchLockDepositEvents(height, this.client)
+	log.Debugf("bor time analyse - this.fetchLockDepositEvents end  , bor height: %d", height)
 	if !ret {
 		return fmt.Errorf("handleNewBlock - fetchLockDepositEvents on height :%d failed", height)
 	}
@@ -290,27 +386,36 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 
 	// Polygon: add heimdall header and proof
+	log.Debugf("bor time analyse - service.GetBestCosmosHeightForBor start, bor height: %d", height)
 	hHeight, err := service.GetBestCosmosHeightForBor()
+	log.Debugf("bor time analyse - service.GetBestCosmosHeightForBor   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
 
 	// get span data, heimdall header, proof
+	log.Debugf("bor time analyse - this.TendermintClient.GetSpanIdByBor start, bor height: %d", height)
 	spanId, err := this.TendermintClient.GetSpanIdByBor(height)
+	log.Debugf("bor time analyse - this.TendermintClient.GetSpanIdByBor   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
 	if spanId == 0 {
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
+
+	log.Debugf("bor time analyse - this.TendermintClient.GetSpanRes start, bor height: %d", height)
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
+	log.Debugf("bor time analyse - this.TendermintClient.GetSpanRes   end, bor height: %d", height)
 	if err != nil {
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on hHeight :%d, id: %d, error: %w",
 			hHeight-1, spanId, err)
 	}
 
 	// get heimdall header, proof
+	log.Debugf("bor time analyse - this.TendermintClient.GetCosmosHdr start, bor height: %d", height)
 	cosmosHeader, err := this.TendermintClient.GetCosmosHdr(hHeight)
+	log.Debugf("bor time analyse - this.TendermintClient.GetCosmosHdr   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
@@ -340,12 +445,16 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 }
 
 func (this *EthereumManager) handleBlockHeader(height uint64) error {
+	log.Debugf("bor time analyse - this.client.HeaderByNumber start, bor height: %d", height)
 	hdreth, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(height)))
+	log.Debugf("bor time analyse - this.client.HeaderByNumber end  , bor height: %d", height)
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - GetNodeHeader on height: %d failed, error: %w", height, err)
 	}
 
+	log.Debugf("bor time analyse - this.client.makeHeaderWithOptionalProof start, bor height: %d", height)
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
+	log.Debugf("bor time analyse - this.client.makeHeaderWithOptionalProof end  , bor height: %d", height)
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
 			height, err)
@@ -439,8 +548,9 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 	return true
 }
 
-func (this *EthereumManager) commitHeader() int {
+func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	log.Infof("commitHeader bor start - send transaction to poly chain len %d", len(this.header4sync))
+	log.Debugf("bor time analyse - this.commitHeader start")
 
 	tx, err := this.polySdk.Native.Hs.SyncBlockHeader(
 		this.config.ETHConfig.SideChainId,
@@ -452,20 +562,21 @@ func (this *EthereumManager) commitHeader() int {
 		errDesc := err.Error()
 		if strings.Contains(errDesc, "get the parent block failed") || strings.Contains(errDesc, "missing required field") {
 			log.Warnf("commitHeader bor - send transaction to poly chain err: %w", err)
-			this.rollBackToCommAncestor()
-			return 0
+			this.rollBackToCommAncestor(currentHeight)
+			return fmt.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
 		} else if strings.Contains(errDesc, "block validator is not right, next validator hash:") {
 			lenh := len(this.header4sync)
 			log.Warnf("commitHeader bor - send transaction to poly chain err, currentHeight: %d, restart from %d, error: %w",
-				this.currentHeight, this.currentHeight-uint64(lenh), err)
+				*currentHeight, *currentHeight-uint64(lenh), err)
 			for i := 0; i < lenh; i++ {
-				this.currentHeight--
+				*currentHeight--
 			}
 			this.header4sync = make([][]byte, 0)
-			return 0
+			return fmt.Errorf("commitHeader bor - send transaction to poly chain err, currentHeight: %d, restart from %d, error: %w",
+				*currentHeight, *currentHeight-uint64(lenh), err)
 		} else {
 			log.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
-			return 1
+			return fmt.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
 		}
 	}
 	tick := time.NewTicker(50 * time.Millisecond)
@@ -481,32 +592,34 @@ func (this *EthereumManager) commitHeader() int {
 	snycheight := this.findLastestHeight()
 	height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 	if err != nil {
-		return 1
+		log.Errorf("tools.GetNodeHeight error: %w", err)
+		return fmt.Errorf("tools.GetNodeHeight error: %w", err)
 	}
 
 	log.Infof("commitHeader bor success - send transaction %s to poly chain and confirmed on poly height %d, snyced bor height: %d, lastest bor height: %d, diff: %d",
-		tx.ToHexString(), h,
-		snycheight, height, height-snycheight)
+		tx.ToHexString(), h, snycheight, height, height-snycheight)
 
 	this.header4sync = make([][]byte, 0)
-	return 0
+
+	log.Debugf("bor time analyse - this.commitHeader    end")
+	return nil
 }
 
-func (this *EthereumManager) rollBackToCommAncestor() {
-	for ; ; this.currentHeight-- {
+func (this *EthereumManager) rollBackToCommAncestor(currentHeight *uint64) {
+	for ; ; *currentHeight-- {
 		raw, err := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
-			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(this.currentHeight)...))
+			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(*currentHeight)...))
 		if len(raw) == 0 || err != nil {
 			continue
 		}
-		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(this.currentHeight)))
+		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(*currentHeight)))
 		if err != nil {
 			log.Errorf("rollBackToCommAncestor - failed to get header by number, so we wait for one second to retry: %v", err)
 			time.Sleep(time.Second)
-			this.currentHeight++
+			*currentHeight++
 		}
 		if bytes.Equal(hdr.Hash().Bytes(), raw) {
-			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), this.currentHeight)
+			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), *currentHeight)
 			break
 		}
 	}
@@ -520,12 +633,17 @@ func (this *EthereumManager) MonitorDeposit() {
 		case <-monitorTicker.C:
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
-				log.Infof("MonitorDeposit - cannot get eth node height, err: %s", err)
+				log.Errorf("MonitorDeposit - cannot get eth node height, err: %s", err)
 				continue
 			}
 			snycheight := this.findLastestHeight()
 			log.Infof("MonitorDeposit from eth - snyced bor height: %d, lastest bor height: %d, diff: %d", snycheight, height, height-snycheight)
-			this.handleLockDepositEvents(snycheight)
+
+			// change 120 blocks
+			err2 := this.handleLockDepositEvents(snycheight)
+			if err2 != nil {
+				log.Errorf("MonitorDeposit from eth - handleLockDepositEvents error, err: %w", err2)
+			}
 		case <-this.exitChan:
 			return
 		}
@@ -560,7 +678,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		//2. get proof
 		proof, err := tools.GetProof(this.config.ETHConfig.RestURL, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
 		if err != nil {
-			log.Errorf("handleLockDepositEvents - error :%s\n", err.Error())
+			log.Errorf("handleLockDepositEvents - error :%w", err)
 			continue
 		}
 		//3. commit proof to poly

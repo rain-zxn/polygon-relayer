@@ -38,6 +38,8 @@ import (
 	"github.com/polynetwork/polygon-relayer/db"
 	"github.com/polynetwork/polygon-relayer/log"
 	"github.com/polynetwork/polygon-relayer/manager"
+
+	rpcclient "github.com/christianxiao/tendermint/rpc/client"
 )
 
 var ConfigPath string
@@ -133,9 +135,12 @@ func startServer(ctx *cli.Context) {
 		return
 	}
 
+	tclient := rpcclient.NewHTTP(servConfig.TendermintConfig.CosmosRpcAddr, "/websocket")
+	tclient.Start()
+
 	// init heimdall service
 	// all tools and info hold by context object.
-	if err = cosctx.InitCtx(servConfig.TendermintConfig, boltDB, polySdkp); err != nil {
+	if err = cosctx.InitCtx(servConfig.TendermintConfig, boltDB, polySdkp, tclient); err != nil {
 		log.Fatalf("failed to init context: %v", err)
 		panic(err)
 	}
@@ -143,7 +148,7 @@ func startServer(ctx *cli.Context) {
 	service.StartRelay()
 
 	initPolyServer(servConfig, polySdkp, ethereumsdk, boltDB)
-	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc)
+	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc, tclient)
 	waitToExit()
 }
 
@@ -171,8 +176,8 @@ func waitToExit() {
 	<-exit
 }
 
-func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB, cdc *codec.Codec) {
-	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr, cdc)
+func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB, cdc *codec.Codec, tclient *rpcclient.HTTP) {
+	mgr, err := manager.NewEthereumManager(servConfig, StartHeight, StartForceHeight, polysdk, ethereumsdk, boltDB, servConfig.TendermintConfig.CosmosRpcAddr, cdc, tclient)
 	if err != nil {
 		log.Error("initETHServer - eth service start err: %s", err.Error())
 		return

@@ -18,27 +18,26 @@
 package poly_go_sdk
 
 import (
-	"bytes"
-	"encoding/binary"
+	//"bytes"
+	//"encoding/binary"
 
 	poly_go_sdk "github.com/polynetwork/poly-go-sdk"
-	"github.com/polynetwork/polygon-relayer/log"
+	// "github.com/polynetwork/polygon-relayer/log"
 
-	"github.com/polynetwork/poly/common"
+	//"github.com/polynetwork/poly/common"
 
-	mhcomm "github.com/polynetwork/poly/native/service/header_sync/common"
-	autils "github.com/polynetwork/poly/native/service/utils"
-	polycosmos "github.com/polynetwork/polygon-relayer/poly/native/header_sync/cosmos"
+	//mhcomm "github.com/polynetwork/poly/native/service/header_sync/common"
+	//autils "github.com/polynetwork/poly/native/service/utils"
+	//polycosmos "github.com/polynetwork/polygon-relayer/poly/native/header_sync/cosmos"
 )
 
 var Enable bool
 
 type PolySdk struct {
 	*poly_go_sdk.PolySdk
-	Native NativeContract
 }
 
-type NativeContract struct {
+/* type NativeContract struct {
 	mcSdk *poly_go_sdk.PolySdk
 	Hs    *HeaderSync
 	Ccm   *poly_go_sdk.CrossChainManager
@@ -46,16 +45,16 @@ type NativeContract struct {
 	Nm    *poly_go_sdk.NodeManager
 	Rm    *poly_go_sdk.RelayerManager
 }
-
+*/
 func NewPolySdkp(sdk *poly_go_sdk.PolySdk, enable bool) *PolySdk {
 	Enable = enable
 
 	a := &PolySdk{PolySdk: sdk}
-	b := &HeaderSync{a.PolySdk.Native.Hs}
-	a.Native.Hs = b
+	// b := &HeaderSync{a.PolySdk.Native.Hs}
+	// a.Native.Hs = b
 	return a
 }
-
+/*
 func (this *PolySdk) GetStorage(contractAddress string, key []byte) ([]byte, error) {
 	if !Enable {
 		return this.PolySdk.GetStorage(contractAddress, key)
@@ -96,3 +95,4 @@ func (this *HeaderSync) SyncBlockHeader(chainId uint64, address common.Address, 
 		chainId, address, headers, signer)
 	return common.UINT256_EMPTY, nil
 }
+ */

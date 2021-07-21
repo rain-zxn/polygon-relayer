@@ -49,7 +49,7 @@ var (
 	RCtx = &Ctx{}
 )
 
-func InitCtx(conf *config.TendermintConfig, db *db.BoltDB, poly *poly_go_sdkp.PolySdk) error {
+func InitCtx(conf *config.TendermintConfig, db *db.BoltDB, poly *poly_go_sdkp.PolySdk, tclinet *rpcclient.HTTP) error {
 	var (
 		err error
 	)
@@ -60,7 +60,7 @@ func InitCtx(conf *config.TendermintConfig, db *db.BoltDB, poly *poly_go_sdkp.Po
 	RCtx.ToPoly = make(chan *CosmosInfo, ChanBufSize)
 
 	// prepare COSMOS staff
-	RCtx.CMRpcCli = rpcclient.NewHTTP(conf.CosmosRpcAddr, "/websocket")
+	RCtx.CMRpcCli = tclinet
 
 	cdc := codec.New()
 	cryptoamino.RegisterAmino(cdc)

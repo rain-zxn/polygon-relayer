@@ -85,6 +85,8 @@ func GetGID() uint64 {
 	return n
 }
 
+var LogLevel int = InfoLog
+
 var Log *Logger
 var LogTender *Logger
 var LogSpanL *Logger
@@ -92,10 +94,10 @@ var LogSpanH *Logger
 
 func init() {
 	//Default print to console
-	Log = InitLog(InfoLog, Stdout, PATH + "default_")
-	LogTender = InitLog(InfoLog, Stdout, PATH + "tendermint_")
-	LogSpanL = InitLog(InfoLog, Stdout, PATH + "span_latest_")
-	LogSpanH = InitLog(InfoLog, Stdout, PATH + "span_history_")
+	Log = InitLog(LogLevel, Stdout, PATH + "default_")
+	LogTender = InitLog(LogLevel, Stdout, PATH + "tendermint_")
+	LogSpanL = InitLog(LogLevel, Stdout, PATH + "span_latest_")
+	LogSpanH = InitLog(LogLevel, Stdout, PATH + "span_history_")
 }
 
 func ClosePrintLog() error {
@@ -356,13 +358,9 @@ func FileOpen(path string) (*os.File, error) {
 	return logfile, nil
 }
 
-//Init deprecated, use InitLog instead
-func Init(a ...interface{}) {
-	os.Stderr.WriteString("warning: use of deprecated Init. Use InitLog instead\n")
-	InitLog(InfoLog, a...)
-}
-
 func InitLog(logLevel int, a ...interface{}) *Logger {
+	LogLevel = logLevel
+
 	writers := []io.Writer{}
 	var logFile *os.File
 	var err error

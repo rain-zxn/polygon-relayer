@@ -191,7 +191,7 @@ func GetProof(url string, contractAddress string, key string, blockheight string
 	rsp := &proofRsp{}
 	err = json.Unmarshal(rspdata, rsp)
 	if err != nil {
-		return nil, fmt.Errorf("GetProof, unmarshal resp err: %s", err)
+		return nil, fmt.Errorf("GetProof, unmarshal resp err: %w", err)
 	}
 	if rsp.Error != nil {
 		return nil, fmt.Errorf("GetProof, unmarshal resp err: %s", rsp.Error.Message)

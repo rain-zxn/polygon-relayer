@@ -54,10 +54,8 @@ func GetSpanKey(id uint64) []byte {
 	return append(SpanPrefixKey, []byte(strconv.FormatUint(id, 10))...)
 }
 
-func NewTendermintClient(addr string, db *db.BoltDB, cdc *codec.Codec) (*TendermintClient, error) {
-	c := rpcclient.NewHTTP(addr, "/websocket")
-
-	c.Start()
+func NewTendermintClient(addr string, db *db.BoltDB, cdc *codec.Codec, tclient *rpcclient.HTTP) (*TendermintClient, error) {
+	c := tclient
 
 	return &TendermintClient{
 		RPCHttp:  c,
@@ -186,7 +184,7 @@ func (this *TendermintClient) MonitorSpanHisRoutine(start uint64) {
 				_, span, err := this.GetSpanRes(i, 0)
 				if err != nil {
 					log.LogSpanH.Errorf("MonitorSpanHisRoutine - GetSpanRes error, id %d, err: %s", i, err.Error())
-					time.Sleep(60 * time.Second)
+					time.Sleep(10 * time.Second)
 					continue
 				}
 
@@ -209,7 +207,7 @@ func (this *TendermintClient) MonitorSpanHisRoutine(start uint64) {
 			}
 		}
 
-		time.Sleep(60 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -267,11 +265,17 @@ func (this *TendermintClient) GetSpanRes(id uint64, heimHeight int64) (*abcitype
 }
 
 func (this *TendermintClient) GetCosmosHdr(h int64) (*types.CosmosHeader, error) {
+	log.Debugf("bor time analyse - this.RPCHttp.Commit start, bor height: %d", h)
 	rc, err := this.RPCHttp.Commit(&h)
+	log.Debugf("bor time analyse - this.RPCHttp.Commit   end, bor height: %d", h)
 	if err != nil {
 		return nil, fmt.Errorf("tendermint_client.GetCosmosHdr - commit error, to get Commit of height %d: %v", h, err)
 	}
+
+	log.Debugf("bor time analyse - this.getValidators start, bor height: %d", h)
 	vSet, err := this.getValidators(h)
+	log.Debugf("bor time analyse - this.getValidators   end, bor height: %d", h)
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Validators of height %d: %v", h, err)
 	}
@@ -282,6 +286,7 @@ func (this *TendermintClient) GetCosmosHdr(h int64) (*types.CosmosHeader, error)
 	}, nil
 }
 
+// TODO: this only return first 100 items
 func (this *TendermintClient) getValidators(h int64) ([]*tdmt_types.Validator, error) {
 	vSet := make([]*tdmt_types.Validator, 0)
 
