@@ -12,14 +12,11 @@ Polygon Relayer is an important character of Poly cross-chain interactive protoc
 git clone https://github.com/polynetwork/polygon-relayer.git
 cd polygon-relayer
 CGO_ENABLED=0 go build -o polygon-relayer main.go
+./polygon-relayer --cliconfig ./env/prod/config.json 
 ```
 
 After building the source code successfully,  you should see the executable program `polygon-relayer`. 
 
-### Run with config file
-```shell
-./polygon-relayer --cliconfig ./env/prod/config.json 
-```
 ### Build Docker Image
 
 ```
