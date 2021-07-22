@@ -263,7 +263,8 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 				if len(this.header4sync) >= this.config.ETHConfig.HeadersPerBatch ||
 					(currentHeight == height-config.ETH_USEFUL_BLOCK_NUM-1 && len(this.header4sync) > 0) {
 					if err := this.commitHeader(&currentHeight); err != nil {
-						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") {
+						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") || 
+						strings.Contains(err.Error(), "poly bor height not updated") {
 							log.Warnf("SyncHeaderToPoly commit error: %w", err)
 						} else {
 							log.Errorf("SyncHeaderToPoly commit error: %w", err)
