@@ -228,6 +228,8 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 	for {
 		select {
 		case <-fetchBlockTicker.C:
+			currentHeight = this.currentHeight
+
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
 				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
@@ -286,6 +288,8 @@ func (this *EthereumManager) SyncEventToPoly() error {
 	for {
 		select {
 		case <-fetchBlockTicker.C:
+			// currentHeight = this.findLastestHeight()
+
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
 				log.Errorf("SyncEventToPoly - cannot get node height, err: %w", err)
