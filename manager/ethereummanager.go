@@ -183,7 +183,7 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 }
 
-func (this *EthereumManager) SyncCache(currentHeight uint64, ) error {
+func (this *EthereumManager) SyncCache(currentHeight uint64) error {
 
 	fetchBlockTicker := time.NewTicker(1 * time.Second)
 	for {
@@ -199,7 +199,7 @@ func (this *EthereumManager) SyncCache(currentHeight uint64, ) error {
 			}
 
 			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-				
+
 				err := this.handleBlockHeader(currentHeight)
 				log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
 
@@ -556,6 +556,8 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	log.Infof("commitHeader bor start - send transaction to poly chain len %d", len(this.header4sync))
 	log.Debugf("bor time analyse - this.commitHeader start")
 
+	snycheightLast := this.findLastestHeight()
+
 	tx, err := this.polySdk.Native.Hs.SyncBlockHeader(
 		this.config.ETHConfig.SideChainId,
 		this.polySigner.Address,
@@ -598,6 +600,11 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	if err != nil {
 		log.Errorf("tools.GetNodeHeight error: %w", err)
 		return fmt.Errorf("tools.GetNodeHeight error: %w", err)
+	}
+
+	if snycheight <= snycheightLast {
+		return fmt.Errorf("commitHeader bor failed, poly bor height not updated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
+			tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
 	}
 
 	log.Infof("commitHeader bor success - send transaction %s to poly chain and confirmed on poly height %d, snyced bor height: %d, lastest bor height: %d, diff: %d",
