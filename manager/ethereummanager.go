@@ -228,7 +228,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 	for {
 		select {
 		case <-fetchBlockTicker.C:
-			currentHeight = this.currentHeight
+			currentHeight = this.findLastestHeight()
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
