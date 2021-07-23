@@ -544,34 +544,44 @@
 			 }
 		 }
 	 }
-	 for k, v := range bridgeTransactions {
+/* 	 for k, v := range bridgeTransactions {
 		 if v.hasPay == FEE_NOTPAY {
 			 log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s",
 				 v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee)
 			 this.db.DeleteBridgeTransactions(k)
 			 delete(bridgeTransactions, k)
 		 }
-	 }
+	 } */
 	 retryBridgeTransactions := make(map[string]*BridgeTransaction, 0)
 	 for len(bridgeTransactions) > 0 {
 		 var maxFeeOfTransaction *BridgeTransaction = nil
-		 maxFee := new(big.Float).SetUint64(0)
+		 // maxFee := new(big.Float).SetUint64(0)
 		 maxFeeOfTxHash := ""
-		 log.Infof("select transaction......")
+
+		 log.Infof("select transaction")
+
 		 for k, v := range bridgeTransactions {
-			 fee, result := new(big.Float).SetString(v.fee)
-			 if result == false {
-				 log.Errorf("fee is invalid")
-				 delete(bridgeTransactions, maxFeeOfTxHash)
-				 continue
-			 }
-			 if v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0 {
-				 maxFee = fee
+
+			txhash := hex.EncodeToString([]byte(v.polyTxHash))
+			log.Infof("select transaction......, %s", txhash)
+
+			 // fee, result := new(big.Float).SetString(v.fee)
+			 //if result == false {
+			//	 log.Errorf("fee is invalid")
+			//	 delete(bridgeTransactions, maxFeeOfTxHash)
+			//	 continue
+			 //}
+			 log.Infof("check fee start ......, %s", txhash)
+			 // if v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0 {
+				 // maxFee = fee
 				 maxFeeOfTransaction = v
 				 maxFeeOfTxHash = k
-			 }
+
+				 log.Infof("check fee status  ......, %s", txhash)
+			 // }
 		 }
-		 if maxFeeOfTransaction != nil {
+		 // if maxFeeOfTransaction != nil {
+			if true {
 			 sender := this.selectSender()
 			 if sender == nil {
 				 log.Infof("There is no sender.......")
@@ -580,6 +590,8 @@
 			 log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(maxFeeOfTransaction.param.TxHash))
 			 res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header, maxFeeOfTransaction.param, maxFeeOfTransaction.headerProof,
 				 maxFeeOfTransaction.anchorHeader, hex.EncodeToString(maxFeeOfTransaction.param.TxHash), maxFeeOfTransaction.rawAuditPath)
+			 
+				log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(maxFeeOfTransaction.param.TxHash))
 			 if res == true {
 				 this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
 				 delete(bridgeTransactions, maxFeeOfTxHash)
@@ -739,10 +751,13 @@
 		 this.cmap[k] = c
 		 go func() {
 			 for v := range c {
+				log.Infof("start to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
 				 if err = this.sendTxToEth(v); err != nil {
-					 log.Errorf("failed to send tx to ethereum: error: %v, txData: %s", err, hex.EncodeToString(v.txData))
+					 log.Errorf("failed to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
 					 this.result <- true
-				 }
+				 }else{
+				 log.Infof("success to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
+			    }
 			 }
 		 }()
 	 }
