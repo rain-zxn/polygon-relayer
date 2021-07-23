@@ -62,6 +62,7 @@ func setupApp() *cli.App {
 		cmd.PolyStartFlag,
 		cmd.LogDir,
 		cmd.TestLocalFlag,
+		cmd.NofeemodeFlag,
 	}
 	app.Commands = []cli.Command{}
 	app.Before = func(context *cli.Context) error {
