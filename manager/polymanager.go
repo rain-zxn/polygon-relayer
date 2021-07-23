@@ -555,7 +555,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			}
 		}
 	}
-	if this.nofeemode {
+	if !this.nofeemode {
 		for k, v := range bridgeTransactions {
 			if v.hasPay == FEE_NOTPAY {
 				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s",

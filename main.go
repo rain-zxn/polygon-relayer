@@ -165,7 +165,7 @@ func setUpPoly(poly *sdk.PolySdk, RpcAddr string) error {
 }
 
 func waitToExit() {
-	exit := make(chan bool, 0)
+	exit := make(chan bool)
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	go func() {
