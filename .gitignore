@@ -4,6 +4,7 @@ capital*
 db/bolt.bin
 config.json
 wallet.dat
+wallet1.dat
 config-*debug.json
 log/20*
 UTC--*
@@ -19,5 +20,4 @@ polygon-relayer
 
 output/**
 
-env/**/keystore/
-env/**/*.dat
+**/wallet*.dat
