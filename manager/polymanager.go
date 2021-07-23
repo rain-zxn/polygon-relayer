@@ -525,6 +525,8 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			})
 		}
 	}
+
+	var checkfeeRes string
 	if len(noCheckFees) > 0 {
 		//bb, _  := json.Marshal(noCheckFees)
 		//log.Infof("noCheckFees params: %w", string(bb))
@@ -533,6 +535,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		if err != nil {
 			log.Errorf("handleLockDepositEvents - checkFee error: %s", err)
 		}
+
 		if checkFees != nil {
 			for _, checkFee := range checkFees {
 				if checkFee.Error != "" {
@@ -554,18 +557,22 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				}
 			}
 		}
+
+		bb, _  := json.Marshal(noCheckFees)
+		checkfeeRes = string(bb)
 	}
 	if !this.nofeemode {
 		for k, v := range bridgeTransactions {
 			if v.hasPay == FEE_NOTPAY {
-				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s",
-					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee)
+				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s, total response: %s",
+					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee, checkfeeRes)
+					
 				this.db.DeleteBridgeTransactions(k)
 				delete(bridgeTransactions, k)
 			}
 		}
 	}
-	retryBridgeTransactions := make(map[string]*BridgeTransaction, 0)
+	retryBridgeTransactions := make(map[string]*BridgeTransaction)
 	for len(bridgeTransactions) > 0 {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
