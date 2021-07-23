@@ -260,7 +260,7 @@ func (this *PolyManager) MonitorChain() {
 			if latestheight-this.currentHeight < config.ONT_USEFUL_BLOCK_NUM {
 				continue
 			}
-			log.Infof("MonitorChain - poly chain current height: %d", latestheight)
+			log.Infof("MonitorChain - poly chain current height: %d, start height: %d", latestheight, this.currentHeight)
 			blockHandleResult = true
 			for this.currentHeight <= latestheight-config.ONT_USEFUL_BLOCK_NUM {
 				blockHandleResult = this.handleDepositEvents(this.currentHeight)
