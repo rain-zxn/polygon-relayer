@@ -17,5 +17,7 @@ polygon-relayer
 */logoutput
 */logoutput/**
 
-env/**
 output/**
+
+env/**/keystore/
+env/**/*.dat
