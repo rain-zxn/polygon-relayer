@@ -483,6 +483,7 @@ func (this *PolyManager) MonitorDeposit() {
 	for {
 		select {
 		case <-monitorTicker.C:
+			log.Infof("MonitorDeposit - start")
 			this.handleLockDepositEvents()
 		case <-this.exitChan:
 			return
@@ -510,6 +511,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	}
 	noCheckFees := make([]*poly_bridge_sdk.CheckFeeReq, 0)
 	for _, v := range bridgeTransactions {
+		log.Infof("handleLockDepositEvents - bridgeTransactions, v.param.MakeTxParam.TxHash: %s", hex.EncodeToString(v.param.MakeTxParam.TxHash))
 		if v.hasPay == FEE_NOCHECK {
 			noCheckFees = append(noCheckFees, &poly_bridge_sdk.CheckFeeReq{
 				ChainId: v.param.FromChainID,
