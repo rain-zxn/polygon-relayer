@@ -739,14 +739,9 @@ func (this *EthereumManager) commitProof(height uint32, proof []byte, value []by
 	if err != nil {
 		return "", err
 	} else {
-		log.Infof("commitProof - send transaction to poly chain: this.config.ETHConfig.SideChainId: %d, value: %s, height: %d, proof: %s, ADDRESS: %s, msg: %s, polytx: %s",
+		log.Infof("commitProof - send transaction to poly chain: this.config.ETHConfig.SideChainId: %d, height: %d, polytx: %s",
 		this.config.ETHConfig.SideChainId, 
-		hex.EncodeToString(value),  
 		height,
-		hex.EncodeToString(proof),
-		hex.EncodeToString(ethcommon.Hex2Bytes(this.polySigner.Address.ToHexString())),
-		hex.EncodeToString([]byte{}),
-		"", 
 		tx.ToHexString())
 		return tx.ToHexString(), nil
 	}
@@ -764,7 +759,6 @@ func (this *EthereumManager) CheckDeposit() {
 	for {
 		select {
 		case <-checkTicker.C:
-			// try to check deposit
 			this.checkLockDepositEvents()
 		case <-this.exitChan:
 			return

@@ -528,37 +528,32 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 	var checkfeeRes string
 	if len(noCheckFees) > 0 {
-		//bb, _  := json.Marshal(noCheckFees)
-		//log.Infof("noCheckFees params: %w", string(bb))
-
 		checkFees, err := this.checkFee(noCheckFees)
 		if err != nil {
 			log.Errorf("handleLockDepositEvents - checkFee error: %s", err)
 		}
 
-		if checkFees != nil {
-			for _, checkFee := range checkFees {
-				if checkFee.Error != "" {
-					log.Errorf("check fee err: %s", checkFee.Error)
-					continue
-				}
-				item, ok := bridgeTransactions[fmt.Sprintf("%d%s", checkFee.ChainId, checkFee.Hash)]
-				if ok {
-					if checkFee.PayState == poly_bridge_sdk.STATE_HASPAY {
-						log.Infof("tx(%d,%s) has payed fee", checkFee.ChainId, checkFee.Hash)
-						item.hasPay = FEE_HASPAY
-						item.fee = checkFee.Amount
-					} else if checkFee.PayState == poly_bridge_sdk.STATE_NOTPAY {
-						log.Infof("tx(%d,%s) has not payed fee", checkFee.ChainId, checkFee.Hash)
-						item.hasPay = FEE_NOTPAY
-					} else {
-						log.Errorf("check fee of tx(%d,%s) failed", checkFee.ChainId, checkFee.Hash)
-					}
+		for _, checkFee := range checkFees {
+			if checkFee.Error != "" {
+				log.Errorf("check fee err: %s", checkFee.Error)
+				continue
+			}
+			item, ok := bridgeTransactions[fmt.Sprintf("%d%s", checkFee.ChainId, checkFee.Hash)]
+			if ok {
+				if checkFee.PayState == poly_bridge_sdk.STATE_HASPAY {
+					log.Infof("tx(%d,%s) has payed fee", checkFee.ChainId, checkFee.Hash)
+					item.hasPay = FEE_HASPAY
+					item.fee = checkFee.Amount
+				} else if checkFee.PayState == poly_bridge_sdk.STATE_NOTPAY {
+					log.Infof("tx(%d,%s) has not payed fee", checkFee.ChainId, checkFee.Hash)
+					item.hasPay = FEE_NOTPAY
+				} else {
+					log.Errorf("check fee of tx(%d,%s) failed", checkFee.ChainId, checkFee.Hash)
 				}
 			}
 		}
 
-		bb, _  := json.Marshal(noCheckFees)
+		bb, _ := json.Marshal(checkFees)
 		checkfeeRes = string(bb)
 	}
 	if !this.nofeemode {
@@ -566,7 +561,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			if v.hasPay == FEE_NOTPAY {
 				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s, total response: %s",
 					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee, checkfeeRes)
-					
+
 				this.db.DeleteBridgeTransactions(k)
 				delete(bridgeTransactions, k)
 			}
