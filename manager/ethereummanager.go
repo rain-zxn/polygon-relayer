@@ -695,6 +695,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		}
 		//3. commit proof to poly
 		txHash, err := this.commitProof(uint32(height), proof, crosstx.value, crosstx.txId)
+		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 		if err != nil {
 			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") {
 				log.Infof("handleLockDepositEvents - invokeNativeContract error: %s", err)
@@ -738,8 +739,15 @@ func (this *EthereumManager) commitProof(height uint32, proof []byte, value []by
 	if err != nil {
 		return "", err
 	} else {
-		log.Infof("commitProof - send transaction to poly chain: ( poly_txhash: %s, eth_txhash: %s, height: %d )",
-			tx.ToHexString(), ethcommon.BytesToHash(txhash).String(), height)
+		log.Infof("commitProof - send transaction to poly chain: this.config.ETHConfig.SideChainId: %d, value: %s, height: %d, proof: %s, ADDRESS: %s, msg: %s, polytx: %s",
+		this.config.ETHConfig.SideChainId, 
+		hex.EncodeToString(value),  
+		height,
+		hex.EncodeToString(proof),
+		hex.EncodeToString(ethcommon.Hex2Bytes(this.polySigner.Address.ToHexString())),
+		hex.EncodeToString([]byte{}),
+		"", 
+		tx.ToHexString())
 		return tx.ToHexString(), nil
 	}
 }

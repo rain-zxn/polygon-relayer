@@ -147,9 +147,15 @@ type PolyManager struct {
 	senders       []*EthSender
 	bridgeSdk     *poly_bridge_sdk.BridgeFeeCheck
 	eccdInstance  *eccd_abi.EthCrossChainData
+	nofeemode     bool
 }
 
-func NewPolyManager(servCfg *config.ServiceConfig, startblockHeight uint32, polySdk *sdk.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) (*PolyManager, error) {
+func NewPolyManager(servCfg *config.ServiceConfig,
+	startblockHeight uint32,
+	polySdk *sdk.PolySdk,
+	ethereumsdk *ethclient.Client,
+	boltDB *db.BoltDB,
+	nofeemode bool) (polyManager *PolyManager, err error) {
 	contractabi, err := abi.JSON(strings.NewReader(eccm_abi.EthCrossChainManagerABI))
 	if err != nil {
 		return nil, err
@@ -212,6 +218,8 @@ func NewPolyManager(servCfg *config.ServiceConfig, startblockHeight uint32, poly
 		senders:       senders,
 		bridgeSdk:     bridgeSdk,
 		eccdInstance:  instance,
+
+		nofeemode: nofeemode,
 	}, nil
 }
 
@@ -260,7 +268,7 @@ func (this *PolyManager) MonitorChain() {
 			if latestheight-this.currentHeight < config.ONT_USEFUL_BLOCK_NUM {
 				continue
 			}
-			log.Infof("MonitorChain - poly chain current height: %d, start height: %d", latestheight, this.currentHeight)
+			log.Infof("MonitorChain - poly chain current height: %d", latestheight)
 			blockHandleResult = true
 			for this.currentHeight <= latestheight-config.ONT_USEFUL_BLOCK_NUM {
 				blockHandleResult = this.handleDepositEvents(this.currentHeight)
@@ -456,26 +464,26 @@ func (this *PolyManager) selectSender1() *EthSender {
 
 func (this *PolyManager) selectSender() *EthSender {
 	return this.senders[int(rand.Uint32())%len(this.senders)]
-	for _, v := range this.senders {
-		bal, err := v.Balance()
-		if err != nil {
-			continue
-		}
-		if bal.Cmp(new(big.Int).SetUint64(100000000000000000)) == -1 {
-			log.Errorf("account %s balance is not enough......", v.acc.Address.String())
-			continue
-		}
-		if bal.Cmp(new(big.Int).SetUint64(400000000000000000)) == -1 {
-			log.Errorf("account %s balance is not enough......", v.acc.Address.String())
-		}
-		if v.locked {
-			log.Errorf("account %s has locked......", v.acc.Address.String())
-			continue
-		} else {
-			return v
-		}
-	}
-	return nil
+	/* 	for _, v := range this.senders {
+	   		bal, err := v.Balance()
+	   		if err != nil {
+	   			continue
+	   		}
+	   		if bal.Cmp(new(big.Int).SetUint64(100000000000000000)) == -1 {
+	   			log.Errorf("account %s balance is not enough......", v.acc.Address.String())
+	   			continue
+	   		}
+	   		if bal.Cmp(new(big.Int).SetUint64(400000000000000000)) == -1 {
+	   			log.Errorf("account %s balance is not enough......", v.acc.Address.String())
+	   		}
+	   		if v.locked {
+	   			log.Errorf("account %s has locked......", v.acc.Address.String())
+	   			continue
+	   		} else {
+	   			return v
+	   		}
+	   	}
+	   	return nil */
 }
 
 func (this *PolyManager) MonitorDeposit() {
@@ -483,7 +491,6 @@ func (this *PolyManager) MonitorDeposit() {
 	for {
 		select {
 		case <-monitorTicker.C:
-			log.Infof("MonitorDeposit - start")
 			this.handleLockDepositEvents()
 		case <-this.exitChan:
 			return
@@ -499,7 +506,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	if len(retryList) == 0 {
 		return nil
 	}
-	bridgeTransactions := make(map[string]*BridgeTransaction, 0)
+	bridgeTransactions := make(map[string]*BridgeTransaction)
 	for _, v := range retryList {
 		bridgeTransaction := new(BridgeTransaction)
 		err := bridgeTransaction.Deserialization(common.NewZeroCopySource(v))
@@ -511,7 +518,6 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	}
 	noCheckFees := make([]*poly_bridge_sdk.CheckFeeReq, 0)
 	for _, v := range bridgeTransactions {
-		log.Infof("handleLockDepositEvents - bridgeTransactions, v.param.MakeTxParam.TxHash: %s", hex.EncodeToString(v.param.MakeTxParam.TxHash))
 		if v.hasPay == FEE_NOCHECK {
 			noCheckFees = append(noCheckFees, &poly_bridge_sdk.CheckFeeReq{
 				ChainId: v.param.FromChainID,
@@ -520,6 +526,9 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}
 	}
 	if len(noCheckFees) > 0 {
+		//bb, _  := json.Marshal(noCheckFees)
+		//log.Infof("noCheckFees params: %w", string(bb))
+
 		checkFees, err := this.checkFee(noCheckFees)
 		if err != nil {
 			log.Errorf("handleLockDepositEvents - checkFee error: %s", err)
@@ -546,12 +555,14 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			}
 		}
 	}
-	for k, v := range bridgeTransactions {
-		if v.hasPay == FEE_NOTPAY {
-			log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s",
-				v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee)
-			this.db.DeleteBridgeTransactions(k)
-			delete(bridgeTransactions, k)
+	if this.nofeemode {
+		for k, v := range bridgeTransactions {
+			if v.hasPay == FEE_NOTPAY {
+				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s",
+					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee)
+				this.db.DeleteBridgeTransactions(k)
+				delete(bridgeTransactions, k)
+			}
 		}
 	}
 	retryBridgeTransactions := make(map[string]*BridgeTransaction, 0)
@@ -559,21 +570,31 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
 		maxFeeOfTxHash := ""
-		log.Infof("select transaction......")
+
+		log.Infof("select transaction")
+
 		for k, v := range bridgeTransactions {
+
+			txhash := hex.EncodeToString([]byte(v.polyTxHash))
+			log.Infof("select transaction......, %s", txhash)
+
 			fee, result := new(big.Float).SetString(v.fee)
-			if result == false {
+			if !result {
 				log.Errorf("fee is invalid")
 				delete(bridgeTransactions, maxFeeOfTxHash)
 				continue
 			}
+			log.Infof("check fee start ......, %s", txhash)
 			if v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0 {
 				maxFee = fee
 				maxFeeOfTransaction = v
 				maxFeeOfTxHash = k
+
+				log.Infof("check fee status  ......, %s", txhash)
 			}
 		}
-		if maxFeeOfTransaction != nil {
+
+		if maxFeeOfTransaction != nil || this.nofeemode {
 			sender := this.selectSender()
 			if sender == nil {
 				log.Infof("There is no sender.......")
@@ -582,7 +603,9 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(maxFeeOfTransaction.param.TxHash))
 			res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header, maxFeeOfTransaction.param, maxFeeOfTransaction.headerProof,
 				maxFeeOfTransaction.anchorHeader, hex.EncodeToString(maxFeeOfTransaction.param.TxHash), maxFeeOfTransaction.rawAuditPath)
-			if res == true {
+
+			log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(maxFeeOfTransaction.param.TxHash))
+			if res {
 				this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
 				delete(bridgeTransactions, maxFeeOfTxHash)
 			} else {
@@ -714,15 +737,13 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 	headerData = header.GetMessage()
 	txData, err := this.contractAbi.Pack("verifyHeaderAndExecuteTx", rawAuditPath, headerData, rawProof, rawAnchor, sigs)
 	if err != nil {
-		log.Errorf("commitDepositEventsWithHeader - poly txhash: %s, from txhash: %s,  err: %w",
-			hex.EncodeToString(param.TxHash), hex.EncodeToString(param.MakeTxParam.TxHash), err)
+		log.Errorf("commitDepositEventsWithHeader - err:" + err.Error())
 		return false
 	}
 
 	gasPrice, err := this.ethClient.SuggestGasPrice(context.Background())
 	if err != nil {
-		log.Errorf("commitDepositEventsWithHeader - get suggest sas price failed, poly txhash: %s, from txhash: %s,  error: %w",
-			hex.EncodeToString(param.TxHash), hex.EncodeToString(param.MakeTxParam.TxHash), err)
+		log.Errorf("commitDepositEventsWithHeader - get suggest sas price failed error: %s", err.Error())
 		return false
 	}
 	contractaddr := ethcommon.HexToAddress(this.config.ETHConfig.ECCMContractAddress)
@@ -732,8 +753,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 	}
 	gasLimit, err := this.ethClient.EstimateGas(context.Background(), callMsg)
 	if err != nil {
-		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error, poly txhash: %s, from txhash: %s,  error: %w",
-			hex.EncodeToString(param.TxHash), hex.EncodeToString(param.MakeTxParam.TxHash), err)
+		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error: %s", err.Error())
 		return false
 	}
 
@@ -744,10 +764,12 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		this.cmap[k] = c
 		go func() {
 			for v := range c {
+				log.Infof("start to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
 				if err = this.sendTxToEth(v); err != nil {
-					log.Errorf("failed to send tx to ethereum: error: %w, txData: %s, poly txhash: %s, from txhash: %s",
-						err, hex.EncodeToString(v.txData), hex.EncodeToString(param.TxHash), hex.EncodeToString(param.MakeTxParam.TxHash))
+					log.Errorf("failed to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
 					this.result <- true
+				} else {
+					log.Infof("success to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
 				}
 			}
 		}()
@@ -764,8 +786,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 	case <-this.result:
 		return true
 	case <-time.After(time.Second * 300):
-		log.Errorf("account %s has locked! poly txhash: %s, from txhash: %s",
-			this.acc.Address.String(), hex.EncodeToString(param.TxHash), hex.EncodeToString(param.MakeTxParam.TxHash))
+		log.Errorf("account %s has locked!", this.acc.Address.String())
 		this.locked = true
 		return false
 	}

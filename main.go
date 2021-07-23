@@ -95,6 +95,7 @@ func startServer(ctx *cli.Context) {
 	}
 
 	testLocal := ctx.GlobalBool(cmd.GetFlagName(cmd.TestLocalFlag))
+	nofeemode := ctx.GlobalBool(cmd.GetFlagName(cmd.NofeemodeFlag))
 
 	// read config
 	servConfig := config.NewServiceConfig(ConfigPath)
@@ -147,7 +148,7 @@ func startServer(ctx *cli.Context) {
 	service.StartListen()
 	service.StartRelay()
 
-	initPolyServer(servConfig, polySdkp, ethereumsdk, boltDB)
+	initPolyServer(servConfig, polySdkp, ethereumsdk, boltDB, nofeemode)
 	initETHServer(servConfig, polySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc, tclient)
 	waitToExit()
 }
@@ -192,8 +193,8 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethe
 	go mgr.CheckDeposit()
 }
 
-func initPolyServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB) {
-	mgr, err := manager.NewPolyManager(servConfig, uint32(PolyStartHeight), polysdk, ethereumsdk, boltDB)
+func initPolyServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB, nofeemode bool) {
+	mgr, err := manager.NewPolyManager(servConfig, uint32(PolyStartHeight), polysdk, ethereumsdk, boltDB, nofeemode)
 	if err != nil {
 		log.Error("initPolyServer - PolyServer service start failed: %v", err)
 		return
