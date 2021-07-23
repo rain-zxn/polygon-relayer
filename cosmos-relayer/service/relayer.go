@@ -50,7 +50,9 @@ func ToPolyRoutine() {
 		case context.TyHeader:
 			log.LogTender.Infof("relayer.ToPolyRoutine - handleCosmosHdrs, lenth: %d", len(val.Hdrs))
 			if err := handleCosmosHdrs(val.Hdrs); err != nil {
-				panic(err)
+				log.LogTender.Errorf("relayer.ToPolyRoutine - handleCosmosHdrs, lenth: %d, err: %w", len(val.Hdrs), err)
+				// panic(err)
+				continue
 			}
 		case context.TyTx:
 			// go handleCosmosTx(val.Tx, val.Hdrs[0])

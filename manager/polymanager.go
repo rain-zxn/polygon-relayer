@@ -518,6 +518,10 @@
 		 }
 	 }
 	 if len(noCheckFees) > 0 {
+		 //bb, _  := json.Marshal(noCheckFees)
+
+		 //log.Infof("noCheckFees params: %w", string(bb))
+
 		 checkFees, err := this.checkFee(noCheckFees)
 		 if err != nil {
 			 log.Errorf("handleLockDepositEvents - checkFee error: %s", err)
