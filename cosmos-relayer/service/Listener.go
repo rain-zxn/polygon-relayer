@@ -104,7 +104,7 @@ func CosmosListen() {
 			for h := left + 1; h <= right; h++ {
 				infoArrTemp, err := checkCosmosHeight(h, infoArr)
 				if err != nil {
-					log.LogTender.Errorf("[ListenCosmos] checkCosmosHeight error: height: %s right: %s error: %w", h, right, err)
+					log.LogTender.Errorf("[ListenCosmos] checkCosmosHeight error: height: %d right: %d error: %w", h, right, err)
 					// If error happen, we should check this height again.
 					h--
 					if strings.Contains(err.Error(), context.RightHeightUpdate) {
