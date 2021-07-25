@@ -238,6 +238,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 			if height-currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
 				continue
 			}
+			currentHeight++
 			log.Infof("SyncHeaderToPoly - eth height is %d, currentheight: %d, diff: %d", height, currentHeight, height-currentHeight)
 
 			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
