@@ -255,14 +255,13 @@ func getValidators(h int64) ([]*tdmt_types.Validator, error) {
 
 	// TODO: this changed!, don't know how to get full validators, only return first 100
 	res, err := ctx.CMRpcCli.Validators(&h)
-	log.LogTender.Infof("cosmos getValidators - height: %d, validators: %d ", h, len(res.Validators))
-
 	if err != nil {
 		if strings.Contains(err.Error(), "page should be within") {
 			return vSet, nil
 		}
 		return nil, err
 	}
+	log.LogTender.Infof("cosmos getValidators - height: %d, validators: %d ", h, len(res.Validators))
 	// In case tendermint don't give relayer the right error
 	if len(res.Validators) == 0 {
 		return vSet, nil
