@@ -249,9 +249,21 @@ func (this *TendermintClient) GetSpanRes(id uint64, heimHeight int64) (*abcitype
 		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, spanID %d, heimHeight %d, %w", id, heimHeight, err)
 	}
 
-	if res.Response.Value == nil {
+	if len(res.Response.Value) == 0 {
 		// The spanID is too new in old heimHeight
 		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, the spanID is too new in old heimHeight, res.Response.Value is nil, spanID %d, heimHeight %d, error: %w",
+			id, heimHeight, types.ErrSpanNotFound)
+	}
+
+	if len(res.Response.Proof.GetOps()) == 0 {
+		// The spanID is too new in old heimHeight
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, the spanID is too new in old heimHeight, res.Response.Proof is nil, spanID %d, heimHeight %d, error: %w",
+			id, heimHeight, types.ErrSpanNotFound)
+	}
+
+	if len(res.Response.Key) == 0 {
+		// The spanID is too new in old heimHeight
+		return nil, nil, fmt.Errorf("tendermint_client.GetSpanRes - failed, the spanID is too new in old heimHeight, res.Response.Key is nil, spanID %d, heimHeight %d, error: %w",
 			id, heimHeight, types.ErrSpanNotFound)
 	}
 

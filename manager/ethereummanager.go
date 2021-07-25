@@ -183,44 +183,6 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 	}
 }
 
-func (this *EthereumManager) SyncCache(currentHeight uint64) error {
-
-	fetchBlockTicker := time.NewTicker(1 * time.Second)
-	for {
-		select {
-		case <-fetchBlockTicker.C:
-			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
-			if err != nil {
-				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
-				continue
-			}
-			if height-currentHeight <= config.ETH_USEFUL_BLOCK_NUM {
-				continue
-			}
-
-			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-
-				err := this.handleBlockHeader(currentHeight)
-				log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
-
-				if err != nil {
-					if errors.Is(err, mytypes.ErrSpanNotFound) {
-						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight+1, err)
-					} else {
-						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight+1, err)
-					}
-					break
-				}
-
-				currentHeight++
-			}
-		case <-this.exitChan:
-			return nil
-		}
-	}
-
-}
-
 func (this *EthereumManager) SyncHeaderToPoly() error {
 	currentHeight := this.currentHeight
 
@@ -228,8 +190,9 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 	for {
 		select {
 		case <-fetchBlockTicker.C:
+			
 			currentHeight = this.findLastestHeight()
-
+			
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
 				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
@@ -242,9 +205,6 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 			log.Infof("SyncHeaderToPoly - eth height is %d, currentheight: %d, diff: %d", height, currentHeight, height-currentHeight)
 
 			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-				if currentHeight%10 == 0 {
-					log.Infof("SyncHeaderToPoly confirmed eth Block height: %d", currentHeight)
-				}
 
 				log.Debugf("bor time analyse - this.handleBlockHeader start, bor height: %d", height)
 				err := this.handleBlockHeader(currentHeight)
@@ -252,9 +212,9 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 
 				if err != nil {
 					if errors.Is(err, mytypes.ErrSpanNotFound) {
-						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight+1, err)
+						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight, err)
 					} else {
-						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight+1, err)
+						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight, err)
 					}
 					break
 				}
@@ -272,6 +232,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 						}
 						break
 					}
+					this.header4sync = make([][]byte, 0)
 				}
 			}
 
@@ -584,6 +545,7 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 				*currentHeight, *currentHeight-uint64(lenh), err)
 		} else {
 			log.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
+			this.header4sync = make([][]byte, 0)
 			return fmt.Errorf("commitHeader bor - send transaction to poly chain err: %w", err)
 		}
 	}
@@ -605,6 +567,7 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	}
 
 	if snycheight <= snycheightLast {
+		this.header4sync = make([][]byte, 0)
 		return fmt.Errorf("commitHeader bor failed, poly bor height not updated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
 			tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
 	}
