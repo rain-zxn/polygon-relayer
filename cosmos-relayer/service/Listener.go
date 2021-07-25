@@ -66,8 +66,7 @@ func CosmosListen() {
 		select {
 		case <-tick.C:
 			status, err := ctx.CMRpcCli.Status()
-			log.LogTender.Infof("[ListenCosmos] status: left: %d, status: %d", left, status.SyncInfo.LatestBlockHeight)
-
+		
 			switch {
 			case err != nil:
 				log.LogTender.Errorf("[ListenCosmos] failed to get height of COSMOS, retry after %d sec: %v",
@@ -76,6 +75,8 @@ func CosmosListen() {
 			case status.SyncInfo.LatestBlockHeight-1 <= lastRight:
 				continue
 			}
+
+			log.LogTender.Infof("[ListenCosmos] status: left: %d, status: %d", left, status.SyncInfo.LatestBlockHeight)
 			right := status.SyncInfo.LatestBlockHeight - 1
 			log.LogTender.Infof("[ListenCosmos] CosmosListen left: %d, right: %d", left, right)
 
