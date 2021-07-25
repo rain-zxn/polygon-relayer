@@ -76,11 +76,12 @@ func CosmosListen() {
 				continue
 			}
 
-			log.LogTender.Infof("[ListenCosmos] status: left: %d, status: %d", left, status.SyncInfo.LatestBlockHeight)
+			log.LogTender.Infof("[ListenCosmos] status: left: %d, status: %d, diff: %d", left, status.SyncInfo.LatestBlockHeight, status.SyncInfo.LatestBlockHeight-left)
 			right := status.SyncInfo.LatestBlockHeight - 1
-			log.LogTender.Infof("[ListenCosmos] CosmosListen left: %d, right: %d", left, right)
+			log.LogTender.Infof("[ListenCosmos] CosmosListen left: %d, right: %d, diff: %d", left, right, right-left)
 
-			hdr, err := getCosmosHdr(right)
+			//var hdr *cosmos.CosmosHeader
+/* 			hdr, err := getCosmosHdr(right)
 			if err != nil {
 				log.LogTender.Errorf("[ListenCosmos] failed to get %d header to get proof, retry after %d sec: %v",
 					right, ctx.Conf.CosmosListenInterval, err)
@@ -92,7 +93,7 @@ func CosmosListen() {
 				log.LogTender.Infof("[ListenCosmos] header at %d is epoch switching point, so continue loop", hdr.Header.Height)
 				lastRight = right
 				continue
-			}
+			} */
 
 			// let first element of infoArr be the info for epoch switching headers.
 			infoArr := &context.CosmosInfo{
@@ -101,7 +102,7 @@ func CosmosListen() {
 			}
 
 			for h := left + 1; h <= right; h++ {
-				infoArrTemp, err := checkCosmosHeight(h, hdr, infoArr)
+				infoArrTemp, err := checkCosmosHeight(h, infoArr)
 				if err != nil {
 					log.LogTender.Errorf("[ListenCosmos] checkCosmosHeight error: height: %s right: %s error: %w", h, right, err)
 					// If error happen, we should check this height again.
@@ -112,8 +113,8 @@ func CosmosListen() {
 						continue
 					}
 					// some error happen, could be some network error or COSMOS full node error.
-					log.LogTender.Errorf("[ListenCosmos] failed to fetch info from COSMOS, retry after 10 sec: %s", err)
-					context.SleepSecs(10)
+					log.LogTender.Errorf("[ListenCosmos] failed to fetch info from COSMOS, retry after 3 sec: %s", err)
+					context.SleepSecs(3)
 					continue
 				}
 				infoArr = infoArrTemp
@@ -217,7 +218,7 @@ func GetCosmosHeightFromPoly() (int64, error) {
 // Put header to `hdrArr` and txs to `txArr`. Get proof from height `heightToGetProof`.
 // `headersToRelay` record all hdrs need to relay. When need to update new height to
 // get proof, relayer update `rightPtr` and return.
-func checkCosmosHeight(h int64, hdrToVerifyProof *cosmos.CosmosHeader, infoArr *context.CosmosInfo) (*context.CosmosInfo, error) {
+func checkCosmosHeight(h int64, infoArr *context.CosmosInfo) (*context.CosmosInfo, error) {
 	rc, err := ctx.CMRpcCli.Commit(&h)
 	if err != nil {
 		return infoArr, err
