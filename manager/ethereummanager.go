@@ -192,6 +192,7 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 
 func (this *EthereumManager) SyncHeaderToPoly() error {
 	currentHeight := this.currentHeight
+
 	forceMode := false
 	if this.forceHeight > 0 {
 		currentHeight = this.forceHeight + 1
@@ -239,7 +240,8 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 						} else if strings.Contains(err.Error(), "poly bor height not updated") {
 							log.Warnf("SyncHeaderToPoly commit error: %w", err)
 							// 101: incase hard fork happened 
-						  currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 - 101
+						  // TODO: currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 - 101
+						  currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
 						} else {
 							log.Errorf("SyncHeaderToPoly commit error: %w", err)
 							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
