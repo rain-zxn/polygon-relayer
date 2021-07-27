@@ -203,7 +203,8 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 		select {
 		case <-fetchBlockTicker.C:
 			if !forceMode {
-				currentHeight = this.findLastestHeight() + 1
+				// 101: incase hard fork happened
+				currentHeight = this.findLastestHeight() + 1 - 101
 			}
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
