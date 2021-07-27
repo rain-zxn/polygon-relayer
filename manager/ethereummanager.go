@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -59,6 +60,9 @@ import (
 )
 
 var Sprint uint64 = 64
+
+var SpanIdCacheSynced uint64 = 0
+var SpanMu sync.Mutex
 
 type CrossTransfer struct {
 	txIndex string
@@ -237,6 +241,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 
 						break
 					}
+
 					this.header4sync = make([][]byte, 0)
 				}
 
@@ -329,23 +334,6 @@ func (this *EthereumManager) findLastestHeight() uint64 {
 	}
 }
 
-func (this *EthereumManager) handleNewBlock(height uint64) error {
-	log.Debugf("bor time analyse - this.handleBlockHeader start, bor height: %d", height)
-	err := this.handleBlockHeader(height)
-	log.Debugf("bor time analyse - this.handleBlockHeader end  , bor height: %d", height)
-	if err != nil {
-		return fmt.Errorf("handleNewBlock - handleBlockHeader on height :%d failed, error: %w", height, err)
-	}
-
-	log.Debugf("bor time analyse - this.fetchLockDepositEvents start, bor height: %d", height)
-	ret := this.fetchLockDepositEvents(height, this.client)
-	log.Debugf("bor time analyse - this.fetchLockDepositEvents end  , bor height: %d", height)
-	if !ret {
-		return fmt.Errorf("handleNewBlock - fetchLockDepositEvents on height :%d failed", height)
-	}
-	return nil
-}
-
 func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *ethtypes.Header) (*types.HeaderWithOptionalProof, error) {
 	headerWithOptionalProof := &types.HeaderWithOptionalProof{}
 	headerWithOptionalProof.Header = *eth
@@ -359,17 +347,13 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 
 	// Polygon: add heimdall header and proof
-	log.Debugf("bor time analyse - service.GetBestCosmosHeightForBor start, bor height: %d", height)
 	hHeight, err := service.GetBestCosmosHeightForBor()
-	log.Debugf("bor time analyse - service.GetBestCosmosHeightForBor   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
 
 	// get span data, heimdall header, proof
-	log.Debugf("bor time analyse - this.TendermintClient.GetSpanIdByBor start, bor height: %d", height)
 	spanId, err := this.TendermintClient.GetSpanIdByBor(height)
-	log.Debugf("bor time analyse - this.TendermintClient.GetSpanIdByBor   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
@@ -377,18 +361,33 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
 
-	log.Debugf("bor time analyse - this.TendermintClient.GetSpanRes start, bor height: %d", height)
+	borhOnPoly := this.findLastestHeight()
+	borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
+	if err != nil {
+		return nil, err
+	}
+	if borhOnPolySpanId == 0 {
+		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
+	}
+
+ 	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
+	if err != nil {
+		return nil, fmt.Errorf("GetLatestSpan error - %w", err)
+	}
+	latestSpanId := latestSpan.ID
+
+	if borhOnPolySpanId == spanId && spanId != latestSpanId {
+		return headerWithOptionalProof, nil 
+	}
+
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
-	log.Debugf("bor time analyse - this.TendermintClient.GetSpanRes   end, bor height: %d", height)
 	if err != nil {
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - tendermintClient.GetSpan error, on hHeight :%d, id: %d, error: %w",
 			hHeight-1, spanId, err)
 	}
 
 	// get heimdall header, proof
-	log.Debugf("bor time analyse - this.TendermintClient.GetCosmosHdr start, bor height: %d", height)
 	cosmosHeader, err := this.TendermintClient.GetCosmosHdr(hHeight)
-	log.Debugf("bor time analyse - this.TendermintClient.GetCosmosHdr   end, bor height: %d", height)
 	if err != nil {
 		return nil, err
 	}
@@ -418,16 +417,13 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 }
 
 func (this *EthereumManager) handleBlockHeader(height uint64) error {
-	log.Debugf("bor time analyse - this.client.HeaderByNumber start, bor height: %d", height)
+	
 	hdreth, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(height)))
-	log.Debugf("bor time analyse - this.client.HeaderByNumber end  , bor height: %d", height)
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - GetNodeHeader on height: %d failed, error: %w", height, err)
 	}
-
-	log.Debugf("bor time analyse - this.client.makeHeaderWithOptionalProof start, bor height: %d", height)
+	
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
-	log.Debugf("bor time analyse - this.client.makeHeaderWithOptionalProof end  , bor height: %d", height)
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
 			height, err)
@@ -568,27 +564,6 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 		tx.ToHexString(), h, snycheight, height, height-snycheight)
 
 	return nil
-}
-
-func (this *EthereumManager) rollBackToCommAncestor(currentHeight *uint64) {
-	for ; ; *currentHeight-- {
-		raw, err := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
-			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(*currentHeight)...))
-		if len(raw) == 0 || err != nil {
-			continue
-		}
-		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(*currentHeight)))
-		if err != nil {
-			log.Errorf("rollBackToCommAncestor - failed to get header by number, so we wait for one second to retry: %v", err)
-			time.Sleep(time.Second)
-			*currentHeight++
-		}
-		if bytes.Equal(hdr.Hash().Bytes(), raw) {
-			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), *currentHeight)
-			break
-		}
-	}
-	this.header4sync = make([][]byte, 0)
 }
 
 func (this *EthereumManager) MonitorDeposit() {
