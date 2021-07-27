@@ -548,7 +548,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 					log.Infof("tx(%d,%s) has not payed fee", checkFee.ChainId, checkFee.Hash)
 					item.hasPay = FEE_NOTPAY
 				} else {
-					log.Errorf("check fee of tx(%d,%s) failed", checkFee.ChainId, checkFee.Hash)
+					log.Warnf("check fee of tx(%d,%s) failed", checkFee.ChainId, checkFee.Hash)
 				}
 			}
 		}
@@ -560,7 +560,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		for k, v := range bridgeTransactions {
 			if v.hasPay == FEE_NOTPAY {
 				log.Infof("tx (src %d, %s, poly %s) has not pay proxy fee, ignore it, payed: %s, total response: %s",
-					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), tools.HexStringReverse(v.polyTxHash), v.fee, checkfeeRes)
+					v.param.FromChainID, hex.EncodeToString(v.param.MakeTxParam.TxHash), v.polyTxHash, v.fee, checkfeeRes)
 
 				this.db.DeleteBridgeTransactions(k)
 				delete(bridgeTransactions, k)
@@ -577,7 +577,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 		for k, v := range bridgeTransactions {
 
-			log.Infof("select transaction......, %s", tools.HexStringReverse(v.polyTxHash))
+			log.Infof("select transaction, poly txhash: %s, poly txhash2: %s", v.polyTxHash, hex.EncodeToString(tools.HexReverse(v.param.TxHash)))
 
 			fee, result := new(big.Float).SetString(v.fee)
 			if !result {
@@ -586,14 +586,14 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				continue
 			}
 			
-			if v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0 {
+			if (v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0) || this.nofeemode  {
 				maxFee = fee
 				maxFeeOfTransaction = v
 				maxFeeOfTxHash = k
 			}
 		}
 
-		if maxFeeOfTransaction != nil || this.nofeemode {
+		if maxFeeOfTransaction != nil {
 			sender := this.selectSender()
 			if sender == nil {
 				log.Infof("There is no sender.......")
@@ -674,10 +674,10 @@ RETRY:
 	isSuccess := this.waitTransactionConfirm(info.polyTxHash, hash)
 	if isSuccess {
 		log.Infof("successful to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s)",
-			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
+			hash.String(), nonce, info.polyTxHash, tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
 	} else {
 		log.Errorf("failed to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s)",
-			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
+			hash.String(), nonce, info.polyTxHash, tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
 		if info.gasPrice.Cmp(maxPrice) > 0 {
 			log.Errorf("waitTransactionConfirm failed")
 			os.Exit(1)
@@ -763,12 +763,12 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		this.cmap[k] = c
 		go func() {
 			for v := range c {
-				log.Infof("start to send tx to ethereum: error: %v, txData: %s", err, v.polyTxHash)
+				log.Infof("start to send tx to ethereum: error: %v, poly txhash: %s", err, v.polyTxHash)
 				if err = this.sendTxToEth(v); err != nil {
-					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
+					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, v.polyTxHash)
 					this.result <- true
 				} else {
-					log.Infof("success to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
+					log.Infof("success to send tx to ethereum: error: %v, polyhash: %s", err, v.polyTxHash)
 				}
 			}
 		}()
@@ -878,7 +878,7 @@ func (this *EthSender) waitTransactionConfirm(polyTxHash string, hash ethcommon.
 		if err != nil {
 			continue
 		}
-		log.Debugf("( eth_transaction %s, poly_tx %s ) is pending: %v", hash.String(), tools.HexStringReverse(polyTxHash), ispending)
+		log.Debugf("( eth_transaction %s, poly_tx %s ) is pending: %v", hash.String(), polyTxHash, ispending)
 		if ispending == true {
 			continue
 		} else {
