@@ -597,21 +597,21 @@ func (this *EthereumManager) MonitorDeposit() {
 func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 	retryList, err := this.db.GetAllRetry()
 	if err != nil {
-		return fmt.Errorf("handleLockDepositEvents - this.db.GetAllRetry error: %s", err)
+		return fmt.Errorf("handleLockDepositEvents - this.db.GetAllRetry error, refHeight: %d, error: %w", refHeight, err)
 	}
 	for _, v := range retryList {
 		time.Sleep(time.Second * 1)
 		crosstx := new(CrossTransfer)
 		err := crosstx.Deserialization(common.NewZeroCopySource(v))
 		if err != nil {
-			log.Errorf("handleLockDepositEvents - retry.Deserialization error: %s", err)
+			log.Errorf("handleLockDepositEvents - retry.Deserialization error, refHeight: %d, error: %s", refHeight, err)
 			continue
 		}
 		//1. decode events
 		key := crosstx.txIndex
 		keyBytes, err := eth.MappingKeyAt(key, "01")
 		if err != nil {
-			log.Errorf("handleLockDepositEvents - MappingKeyAt error:%s\n", err.Error())
+			log.Errorf("handleLockDepositEvents - MappingKeyAt error, refHeight: %d, error:%s", refHeight, err.Error())
 			continue
 		}
 		if refHeight <= crosstx.height+this.config.ETHConfig.BlockConfig {
@@ -623,7 +623,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		//2. get proof
 		proof, err := tools.GetProof(this.config.ETHConfig.RestURL, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
 		if err != nil {
-			log.Errorf("handleLockDepositEvents - error :%w", err)
+			log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, error :%w", height, refHeight, err)
 			continue
 		}
 		//3. commit proof to poly
@@ -631,16 +631,16 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 		if err != nil {
 			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") {
-				log.Infof("handleLockDepositEvents - invokeNativeContract error: %s", err)
+				log.Infof("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, error: %s", refHeight, err)
 				continue
 			} else {
 				if err := this.db.DeleteRetry(v); err != nil {
-					log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error: %s", err)
+					log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, error: %s", refHeight, err)
 				}
 				if strings.Contains(err.Error(), "tx already done") {
-					log.Debugf("handleLockDepositEvents - eth_tx %s already on poly", ethcommon.BytesToHash(crosstx.txId).String())
+					log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d", ethcommon.BytesToHash(crosstx.txId).String(), refHeight)
 				} else {
-					log.Errorf("handleLockDepositEvents - invokeNativeContract error for eth_tx %s: %s", ethcommon.BytesToHash(crosstx.txId).String(), err)
+					log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err)
 				}
 				continue
 			}
@@ -654,7 +654,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		if err != nil {
 			log.Errorf("handleLockDepositEvents - this.db.PutCheck error: %s", err)
 		}
-		log.Infof("handleLockDepositEvents - syncProofToAlia txHash is %s", txHash)
+		log.Infof("handleLockDepositEvents - syncProofToAlia txHash is %s, refHeight: %d", txHash, refHeight)
 	}
 	return nil
 }
