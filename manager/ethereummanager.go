@@ -204,7 +204,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 		case <-fetchBlockTicker.C:
 			if !forceMode {
 				// 101: incase hard fork happened
-				currentHeight = this.findLastestHeight() + 1 - 101
+				currentHeight = this.findLastestHeight() + 1
 			}
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
@@ -233,14 +233,19 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 				if len(this.header4sync) >= this.config.ETHConfig.HeadersPerBatch ||
 					(currentHeight == height-config.ETH_USEFUL_BLOCK_NUM-1 && len(this.header4sync) > 0) {
 					if err := this.commitHeader(&currentHeight); err != nil {
-						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") ||
-							strings.Contains(err.Error(), "poly bor height not updated") {
+						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") {
 							log.Warnf("SyncHeaderToPoly commit error: %w", err)
+							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
+						} else if strings.Contains(err.Error(), "poly bor height not updated") {
+							log.Warnf("SyncHeaderToPoly commit error: %w", err)
+							// 101: incase hard fork happened 
+						  currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 - 101
 						} else {
 							log.Errorf("SyncHeaderToPoly commit error: %w", err)
+							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
 						}
 
-						currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
+						// currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
 						this.header4sync = make([][]byte, 0)
 
 						break
