@@ -61,6 +61,9 @@ import (
 
 var Sprint uint64 = 64
 
+var StartFirst = true
+var StartSpan uint64 = 0
+
 var SpanIdCacheSynced uint64 = 0
 var SpanMu sync.Mutex
 
@@ -361,7 +364,7 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
 
-	borhOnPoly := this.findLastestHeight()
+/* 	borhOnPoly := this.findLastestHeight()
 	borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
 	if err != nil {
 		return nil, err
@@ -376,9 +379,9 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 	latestSpanId := latestSpan.ID
 
-	if borhOnPolySpanId == spanId && spanId != latestSpanId {
+	if borhOnPolySpanId == spanId && spanId != latestSpanId && !StartFirst {
 		return headerWithOptionalProof, nil 
-	}
+	} */
 
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
@@ -562,6 +565,8 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 
 	log.Infof("commitHeader bor success - send transaction %s to poly chain and confirmed on poly height %d, snyced bor height: %d, lastest bor height: %d, diff: %d",
 		tx.ToHexString(), h, snycheight, height, height-snycheight)
+
+	StartFirst = false	
 
 	return nil
 }
