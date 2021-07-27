@@ -577,8 +577,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 		for k, v := range bridgeTransactions {
 
-			txhash := hex.EncodeToString([]byte(v.polyTxHash))
-			log.Infof("select transaction......, %s", tools.HexStringReverse(txhash))
+			log.Infof("select transaction......, %s", tools.HexStringReverse(v.polyTxHash))
 
 			fee, result := new(big.Float).SetString(v.fee)
 			if !result {
