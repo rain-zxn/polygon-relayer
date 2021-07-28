@@ -191,7 +191,7 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 }
 
 func (this *EthereumManager) SyncHeaderToPoly() error {
-	currentHeight := this.currentHeight
+	currentHeight := this.currentHeight + 1
 
 	forceMode := false
 	if this.forceHeight > 0 {
@@ -241,7 +241,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 						} else if strings.Contains(err.Error(), "hard forked") || strings.Contains(err.Error(), "missing required field") {
 							log.Errorf("SyncHeaderToPoly commit err: %s", err)
 
-							this.rollBackToCommAncestor()
+							this.rollBackToCommAncestor(&currentHeight)
 						} else if strings.Contains(err.Error(), "data outdated") {
 							log.Warnf("SyncHeaderToPoly commit err: %s", err)
 
@@ -270,22 +270,24 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 	}
 }
 
-func (this *EthereumManager) rollBackToCommAncestor() {
-	for ; ; this.currentHeight-- {
+func (this *EthereumManager) rollBackToCommAncestor(currentHeight *uint64) {
+	log.Infof("rollBackToCommAncestor - hard fork, start height: %d", *currentHeight)
+	for ; ; *currentHeight-- {
 		raw, err := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
-			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(this.currentHeight)...))
+			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(*currentHeight)...))
 		if len(raw) == 0 || err != nil {
 			continue
 		}
-		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(this.currentHeight)))
+		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(*currentHeight)))
 		if err != nil {
 			log.Errorf("rollBackToCommAncestor - failed to get header by number, so we wait for one second to retry: %v", err)
 			time.Sleep(time.Second)
-			this.currentHeight++
+			*currentHeight++
 			continue
 		}
+		log.Infof("rollBackToCommAncestor - hard fork, check, currentHeight: %d, currentHash: %s, get hash: %s", *currentHeight, hexutil.Encode(raw[:]), hdr.Hash().String())
 		if bytes.Equal(hdr.Hash().Bytes(), raw) {
-			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), this.currentHeight)
+			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), *currentHeight)
 			break
 		}
 	}
@@ -590,20 +592,22 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 		return fmt.Errorf("tools.GetNodeHeight error: %w", err)
 	}
 
+	currentHeightStart := *currentHeight - uint64(lenh) + 1
+
 	if snycheight <= snycheightLast {
 		// outdated
 		if *currentHeight <= snycheight {
 			if this.forceHeight > 0 { // this is force mode, not a error
-				return fmt.Errorf("commitHeader bor failed, poly bor height not updated, data outdated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
-					tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+				return fmt.Errorf("commitHeader bor failed, poly bor height not updated, data outdated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d currentStart: %d",
+					tx.ToHexString(), snycheightLast, snycheight, *currentHeight, currentHeightStart)
 			}
 
-		} else if (*currentHeight - uint64(lenh) + 1) >= snycheightLast { // go to future
-			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, go to future, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
-				tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+		} else if (*currentHeight - uint64(lenh) + 1) > (snycheightLast + 1) { // go to future
+			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, go to future, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d, currentStart: %d",
+				tx.ToHexString(), snycheightLast, snycheight, *currentHeight, currentHeightStart)
 		} else { // may be hard forked
-			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, maybe hard forked, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
-				tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, maybe hard forked, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d, currentStart: %d",
+				tx.ToHexString(), snycheightLast, snycheight, *currentHeight, currentHeightStart)
 		}
 
 		/* if this.forceHeight == 0 { // not force mode
