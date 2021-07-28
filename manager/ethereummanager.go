@@ -594,10 +594,10 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 
 	currentHeightStart := *currentHeight - uint64(lenh) + 1
 
-	if snycheight <= snycheightLast {
+	if snycheight == snycheightLast {
 		// outdated
-		if *currentHeight <= snycheight {
-			if this.forceHeight > 0 { // this is force mode, not a error
+		if *currentHeight < snycheight {
+			if this.forceHeight == 0 { // this is force mode, not a error
 				return fmt.Errorf("commitHeader bor failed, poly bor height not updated, data outdated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d currentStart: %d",
 					tx.ToHexString(), snycheightLast, snycheight, *currentHeight, currentHeightStart)
 			}
