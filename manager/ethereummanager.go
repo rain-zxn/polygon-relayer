@@ -204,8 +204,8 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 		select {
 		case <-fetchBlockTicker.C:
 			if !forceMode {
-				// 101: incase hard fork happened
-				currentHeight = this.findLastestHeight() + 1
+				// reset start
+				// currentHeight = this.findLastestHeight() + 1
 			}
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
@@ -226,7 +226,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 					if errors.Is(err, mytypes.ErrSpanNotFound) {
 						log.Warnf("SyncHeaderToPoly error - ErrSpanNotFound, the bor and spanId is too new on heimdall height, bor height: %d, error: %w", currentHeight, err)
 					} else {
-						log.Errorf("SyncHeaderToPoly error - height: %d, error: %w", currentHeight, err)
+						log.Errorf("SyncHeaderToPoly error - handleBlockHeader error, height: %d, error: %w", currentHeight, err)
 					}
 					break
 				}
@@ -236,18 +236,23 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 					if err := this.commitHeader(&currentHeight); err != nil {
 						if strings.Contains(err.Error(), "block validator is not right, next validator hash:") {
 							log.Warnf("SyncHeaderToPoly commit error: %w", err)
-							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
-						} else if strings.Contains(err.Error(), "poly bor height not updated") {
-							log.Warnf("SyncHeaderToPoly commit error: %w", err)
-							// 101: incase hard fork happened 
-						  // TODO: currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 - 101
-						  currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
+
+							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
+						} else if strings.Contains(err.Error(), "hard forked") || strings.Contains(err.Error(), "missing required field") {
+							log.Errorf("SyncHeaderToPoly commit err: %s", err)
+
+							this.rollBackToCommAncestor()
+						} else if strings.Contains(err.Error(), "data outdated") {
+							log.Warnf("SyncHeaderToPoly commit err: %s", err)
+
+							currentHeight = this.findLastestHeight() + 1
 						} else {
 							log.Errorf("SyncHeaderToPoly commit error: %w", err)
-							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
+
+							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
 						}
 
-						// currentHeight = currentHeight - uint64(len(this.header4sync)) + 1 
+						// currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
 						this.header4sync = make([][]byte, 0)
 
 						break
@@ -263,7 +268,27 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 			return nil
 		}
 	}
+}
 
+func (this *EthereumManager) rollBackToCommAncestor() {
+	for ; ; this.currentHeight-- {
+		raw, err := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
+			append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(this.currentHeight)...))
+		if len(raw) == 0 || err != nil {
+			continue
+		}
+		hdr, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(this.currentHeight)))
+		if err != nil {
+			log.Errorf("rollBackToCommAncestor - failed to get header by number, so we wait for one second to retry: %v", err)
+			time.Sleep(time.Second)
+			this.currentHeight++
+			continue
+		}
+		if bytes.Equal(hdr.Hash().Bytes(), raw) {
+			log.Infof("rollBackToCommAncestor - find the common ancestor: %s(number: %d)", hdr.Hash().String(), this.currentHeight)
+			break
+		}
+	}
 }
 
 func (this *EthereumManager) SyncEventToPoly() error {
@@ -372,24 +397,24 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 	}
 
-/* 	borhOnPoly := this.findLastestHeight()
-	borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
-	if err != nil {
-		return nil, err
-	}
-	if borhOnPolySpanId == 0 {
-		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
-	}
+	/* 	borhOnPoly := this.findLastestHeight()
+		borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
+		if err != nil {
+			return nil, err
+		}
+		if borhOnPolySpanId == 0 {
+			return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
+		}
 
- 	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
-	if err != nil {
-		return nil, fmt.Errorf("GetLatestSpan error - %w", err)
-	}
-	latestSpanId := latestSpan.ID
+	 	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
+		if err != nil {
+			return nil, fmt.Errorf("GetLatestSpan error - %w", err)
+		}
+		latestSpanId := latestSpan.ID
 
-	if borhOnPolySpanId == spanId && spanId != latestSpanId && !StartFirst {
-		return headerWithOptionalProof, nil 
-	} */
+		if borhOnPolySpanId == spanId && spanId != latestSpanId && !StartFirst {
+			return headerWithOptionalProof, nil
+		} */
 
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
@@ -428,12 +453,12 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 }
 
 func (this *EthereumManager) handleBlockHeader(height uint64) error {
-	
+
 	hdreth, err := this.client.HeaderByNumber(context.Background(), big.NewInt(int64(height)))
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - GetNodeHeader on height: %d failed, error: %w", height, err)
 	}
-	
+
 	hdr, err := this.makeHeaderWithOptionalProof(height, hdreth)
 	if err != nil {
 		return fmt.Errorf("handleBlockHeader - makeHeaderWithOptionalProof error on height :%d failed, error: %w",
@@ -564,17 +589,33 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	if err != nil {
 		return fmt.Errorf("tools.GetNodeHeight error: %w", err)
 	}
+
 	if snycheight <= snycheightLast {
-		if this.forceHeight == 0 { // not force mode
-			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
+		// outdated
+		if *currentHeight <= snycheight {
+			if this.forceHeight > 0 { // this is force mode, not a error
+				return fmt.Errorf("commitHeader bor failed, poly bor height not updated, data outdated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
+					tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+			}
+
+		} else if (*currentHeight - uint64(lenh) + 1) >= snycheightLast { // go to future
+			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, go to future, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
+				tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+		} else { // may be hard forked
+			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, maybe hard forked, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
 				tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
 		}
+
+		/* if this.forceHeight == 0 { // not force mode
+			return fmt.Errorf("commitHeader bor failed, poly bor height not updated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d",
+				tx.ToHexString(), snycheightLast, snycheight, *currentHeight)
+		} */
 	}
 
 	log.Infof("commitHeader bor success - send transaction %s to poly chain and confirmed on poly height %d, snyced bor height: %d, lastest bor height: %d, diff: %d",
 		tx.ToHexString(), h, snycheight, height, height-snycheight)
 
-	StartFirst = false	
+	StartFirst = false
 
 	return nil
 }
