@@ -752,7 +752,8 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 	}
 	gasLimit, err := this.ethClient.EstimateGas(context.Background(), callMsg)
 	if err != nil {
-		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error: %s", err.Error())
+		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error，from chain id: %d, poly txhash: %s,  from txhash: %s， error: %s", 
+		param.FromChainID, hex.EncodeToString(tools.HexReverse(param.TxHash)), hex.EncodeToString(param.MakeTxParam.TxHash), err.Error())
 		return false
 	}
 
