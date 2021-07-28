@@ -242,7 +242,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 							log.Errorf("SyncHeaderToPoly commit err: %s", err)
 
 							this.rollBackToCommAncestor(&currentHeight)
-						} else if strings.Contains(err.Error(), "data outdated") {
+						} else if strings.Contains(err.Error(), "data outdated") || strings.Contains(err.Error(), "go to future") {
 							log.Warnf("SyncHeaderToPoly commit err: %s", err)
 
 							currentHeight = this.findLastestHeight() + 1
