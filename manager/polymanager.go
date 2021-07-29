@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -136,6 +137,11 @@ func (this *BridgeTransaction) Deserialization(source *common.ZeroCopySource) er
 	return nil
 }
 
+type BridgeTransactionAndHash struct {
+	BridgeTransaction *BridgeTransaction
+	Hash              string
+}
+
 type PolyManager struct {
 	config        *config.ServiceConfig
 	polySdk       *sdk.PolySdk
@@ -148,6 +154,10 @@ type PolyManager struct {
 	bridgeSdk     *poly_bridge_sdk.BridgeFeeCheck
 	eccdInstance  *eccd_abi.EthCrossChainData
 	nofeemode     bool
+
+	txChan    chan *BridgeTransactionAndHash
+	txSenChan chan *EthSender
+	txLock    *sync.Mutex
 }
 
 func NewPolyManager(servCfg *config.ServiceConfig,
@@ -206,6 +216,11 @@ func NewPolyManager(servCfg *config.ServiceConfig,
 
 		senders[i] = v
 	}
+	txSenChan := make(chan *EthSender, len(senders))
+	for _, v := range senders {
+		txSenChan <- v
+	}
+
 	bridgeSdk := poly_bridge_sdk.NewBridgeFeeCheck(servCfg.BridgeUrl, 5)
 	return &PolyManager{
 		exitChan:      make(chan int),
@@ -220,6 +235,11 @@ func NewPolyManager(servCfg *config.ServiceConfig,
 		eccdInstance:  instance,
 
 		nofeemode: nofeemode,
+
+		txChan:    make(chan *BridgeTransactionAndHash, 4),
+		txSenChan: txSenChan,
+		txLock:   &sync.Mutex{},
+		
 	}, nil
 }
 
@@ -568,6 +588,51 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}
 	}
 	retryBridgeTransactions := make(map[string]*BridgeTransaction)
+
+	txChan := make(chan *BridgeTransactionAndHash, len(bridgeTransactions))
+
+	log.Infof("wg.Wait start")
+	var wg sync.WaitGroup
+	for i := 0; i < len(this.senders); i++ {
+		wg.Add(1)
+		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex) {
+			defer wg.Done()
+			for maxFeeOfTransactionAndHash := range txChan {
+				log.Infof("wg.Wait tx")
+				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
+				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
+
+				sender := <- txSenChan
+
+				// sender := this.selectSender()
+				log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+				res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
+					maxFeeOfTransaction.param,
+					maxFeeOfTransaction.headerProof,
+					maxFeeOfTransaction.anchorHeader,
+					hex.EncodeToString(maxFeeOfTransaction.param.TxHash),
+					maxFeeOfTransaction.rawAuditPath)
+
+				log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+
+				txLock.Lock()
+				if res {
+					this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
+				} else {
+					retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
+				}
+
+				delete(bridgeTransactions, maxFeeOfTxHash)
+				txLock.Unlock()
+
+				txSenChan <- sender
+			}
+		}(txChan, this.txSenChan, this.txLock)
+	}
+	
+
+
+
 	for len(bridgeTransactions) > 0 {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
@@ -585,8 +650,8 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				delete(bridgeTransactions, maxFeeOfTxHash)
 				continue
 			}
-			
-			if (v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0) || this.nofeemode  {
+
+			if (v.hasPay == FEE_HASPAY && fee.Cmp(maxFee) > 0) || this.nofeemode {
 				maxFee = fee
 				maxFeeOfTransaction = v
 				maxFeeOfTxHash = k
@@ -594,27 +659,43 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}
 
 		if maxFeeOfTransaction != nil {
-			sender := this.selectSender()
-			if sender == nil {
-				log.Infof("There is no sender.......")
-				return nil
-			}
-			log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-			res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header, maxFeeOfTransaction.param, maxFeeOfTransaction.headerProof,
-				maxFeeOfTransaction.anchorHeader, hex.EncodeToString(maxFeeOfTransaction.param.TxHash), maxFeeOfTransaction.rawAuditPath)
 
-			log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-			if res {
-				this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
-				delete(bridgeTransactions, maxFeeOfTxHash)
-			} else {
-				retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
-				delete(bridgeTransactions, maxFeeOfTxHash)
+			txChan <- &BridgeTransactionAndHash{
+				BridgeTransaction: maxFeeOfTransaction,
+				Hash:              maxFeeOfTxHash,
 			}
+
+			/* 			sender := this.selectSender()
+			   			if sender == nil {
+			   				log.Infof("There is no sender.......")
+			   				return nil
+			   			}
+			   			log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+			   			res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
+			   				maxFeeOfTransaction.param,
+			   				maxFeeOfTransaction.headerProof,
+			   				maxFeeOfTransaction.anchorHeader,
+			   				hex.EncodeToString(maxFeeOfTransaction.param.TxHash),
+			   				maxFeeOfTransaction.rawAuditPath)
+
+			   			log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+			   			if res {
+			   				this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
+			   			} else {
+			   				retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
+			   			}
+
+			   			delete(bridgeTransactions, maxFeeOfTxHash) */
 		} else {
 			break
 		}
 	}
+	close(txChan)
+	log.Infof("wg.Wait")
+	wg.Wait()
+	log.Infof("wg.Wait finished")
+
+
 	for k, v := range retryBridgeTransactions {
 		sink := common.NewZeroCopySink(nil)
 		v.Serialization(sink)
@@ -752,8 +833,8 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 	}
 	gasLimit, err := this.ethClient.EstimateGas(context.Background(), callMsg)
 	if err != nil {
-		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error，from chain id: %d, poly txhash: %s,  from txhash: %s， error: %s", 
-		param.FromChainID, hex.EncodeToString(tools.HexReverse(param.TxHash)), hex.EncodeToString(param.MakeTxParam.TxHash), err.Error())
+		log.Errorf("commitDepositEventsWithHeader - estimate gas limit error，from chain id: %d, poly txhash: %s,  from txhash: %s， error: %s",
+			param.FromChainID, hex.EncodeToString(tools.HexReverse(param.TxHash)), hex.EncodeToString(param.MakeTxParam.TxHash), err.Error())
 		return false
 	}
 
