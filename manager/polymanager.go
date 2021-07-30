@@ -848,7 +848,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		this.cmap[k] = c
 		go func() {
 			for v := range c {
-				log.Infof("start to send tx to ethereum: error: %v, poly txhash: %s", err, tools.HexStringReverse(v.polyTxHash))
+				log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
 				if err = this.sendTxToEth(v); err != nil {
 					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
 					this.result <- true
