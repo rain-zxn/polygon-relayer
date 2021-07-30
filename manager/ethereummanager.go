@@ -127,6 +127,9 @@ type EthereumManager struct {
 	db             *db.BoltDB
 
 	TendermintClient *TendermintClient
+
+	LastSpanId   uint64
+	LastSpanId2  uint64
 }
 
 func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client,
@@ -257,6 +260,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 
 						break
 					}
+					this.LastSpanId = this.LastSpanId2
 
 					this.header4sync = make([][]byte, 0)
 				}
@@ -407,6 +411,7 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 		if borhOnPolySpanId == 0 {
 			return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
 		}
+		*/
 
 	 	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
 		if err != nil {
@@ -414,9 +419,9 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 		}
 		latestSpanId := latestSpan.ID
 
-		if borhOnPolySpanId == spanId && spanId != latestSpanId && !StartFirst {
+		if spanId == this.LastSpanId && spanId != latestSpanId {
 			return headerWithOptionalProof, nil
-		} */
+		}
 
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
@@ -450,6 +455,8 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	if err != nil {
 		return nil, err
 	}
+
+	this.LastSpanId2 = spanId
 
 	return headerWithOptionalProof, nil
 }

@@ -166,10 +166,10 @@ func GetBestCosmosHeightForBor() (int64, error) {
 		return 0, err
 	}
 
-	log.LogTender.Infof("beforeCosmosListen, ( cosmos height on Poly: %d )", currHeight)
+	log.LogTender.Infof("GetBestCosmosHeightForBor, ( cosmos height on Poly: %d )", currHeight)
 
 	if dbh := ctx.Db.GetCosmosHeight(); dbh > currHeight {
-		log.LogTender.Infof("beforeCosmosListen, ( cosmos height in DB: %d )", dbh)
+		log.LogTender.Infof("GetBestCosmosHeightForBor, ( cosmos height in DB: %d )", dbh)
 		currHeight = dbh
 	}
 	

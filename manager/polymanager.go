@@ -591,48 +591,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 	txChan := make(chan *BridgeTransactionAndHash, len(bridgeTransactions))
 
-	log.Infof("wg.Wait start")
-	var wg sync.WaitGroup
-	for i := 0; i < len(this.senders); i++ {
-		wg.Add(1)
-		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex) {
-			defer wg.Done()
-			for maxFeeOfTransactionAndHash := range txChan {
-				log.Infof("wg.Wait tx")
-				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
-				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
-
-				sender := <- txSenChan
-
-				// sender := this.selectSender()
-				log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-				res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
-					maxFeeOfTransaction.param,
-					maxFeeOfTransaction.headerProof,
-					maxFeeOfTransaction.anchorHeader,
-					hex.EncodeToString(maxFeeOfTransaction.param.TxHash),
-					maxFeeOfTransaction.rawAuditPath)
-
-				log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-
-				txLock.Lock()
-				if res {
-					this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
-				} else {
-					retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
-				}
-
-				delete(bridgeTransactions, maxFeeOfTxHash)
-				txLock.Unlock()
-
-				txSenChan <- sender
-			}
-		}(txChan, this.txSenChan, this.txLock)
-	}
-	
-
-
-
+	log.Infof("wg.Wait start start 1")
 	for len(bridgeTransactions) > 0 {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
@@ -641,8 +600,6 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		log.Infof("select transaction")
 
 		for k, v := range bridgeTransactions {
-
-			log.Infof("select transaction, poly txhash: %s, poly txhash2: %s", v.polyTxHash, hex.EncodeToString(tools.HexReverse(v.param.TxHash)))
 
 			fee, result := new(big.Float).SetString(v.fee)
 			if !result {
@@ -660,10 +617,14 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 		if maxFeeOfTransaction != nil {
 
+			log.Infof("select transaction, poly txhash: %s, poly txhash2: %s", maxFeeOfTransaction.polyTxHash, hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+
 			txChan <- &BridgeTransactionAndHash{
 				BridgeTransaction: maxFeeOfTransaction,
 				Hash:              maxFeeOfTxHash,
 			}
+
+			delete(bridgeTransactions, maxFeeOfTxHash)
 
 			/* 			sender := this.selectSender()
 			   			if sender == nil {
@@ -691,7 +652,49 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}
 	}
 	close(txChan)
-	log.Infof("wg.Wait")
+
+	var wg sync.WaitGroup
+	for i := 0; i < len(this.senders); i++ {
+		wg.Add(1)
+		log.Infof("wg.Wait create gorutine start %d", i)
+		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex) {
+			defer wg.Done()
+
+			for maxFeeOfTransactionAndHash := range txChan {
+				
+				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
+				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
+				log.Infof("wg.Wait tx, tx: %s", maxFeeOfTxHash)
+
+				sender := <- txSenChan
+
+				// sender := this.selectSender()
+				log.Infof("sender %s is handling poly tx (hash: %s), height: %d", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)), maxFeeOfTransaction.header.Height)
+				res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
+					maxFeeOfTransaction.param,
+					maxFeeOfTransaction.headerProof,
+					maxFeeOfTransaction.anchorHeader,
+					hex.EncodeToString(maxFeeOfTransaction.param.TxHash),
+					maxFeeOfTransaction.rawAuditPath)
+
+				log.Infof("sender %s tx return tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+
+				txLock.Lock()
+				if res {
+					this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
+				} else {
+					retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
+				}
+
+				
+				txLock.Unlock()
+
+				txSenChan <- sender
+			}
+		}(txChan, this.txSenChan, this.txLock)
+	}
+
+	log.Infof("wg.Wait start")
 	wg.Wait()
 	log.Infof("wg.Wait finished")
 
@@ -752,13 +755,13 @@ RETRY:
 	}
 	hash := signedtx.Hash()
 
-	isSuccess := this.waitTransactionConfirm(info.polyTxHash, hash)
-	if isSuccess {
+	err2 := this.waitTransactionConfirm(info.polyTxHash, hash)
+	if err2 == nil {
 		log.Infof("successful to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s)",
-			hash.String(), nonce, info.polyTxHash, tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
+			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
 	} else {
-		log.Errorf("failed to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s)",
-			hash.String(), nonce, info.polyTxHash, tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
+		log.Errorf("failed to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s), \n err: %w",
+			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String(), err2)
 		if info.gasPrice.Cmp(maxPrice) > 0 {
 			log.Errorf("waitTransactionConfirm failed")
 			os.Exit(1)
@@ -845,12 +848,12 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		this.cmap[k] = c
 		go func() {
 			for v := range c {
-				log.Infof("start to send tx to ethereum: error: %v, poly txhash: %s", err, v.polyTxHash)
+				log.Infof("start to send tx to ethereum: error: %v, poly txhash: %s", err, tools.HexStringReverse(v.polyTxHash))
 				if err = this.sendTxToEth(v); err != nil {
-					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, v.polyTxHash)
+					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
 					this.result <- true
 				} else {
-					log.Infof("success to send tx to ethereum: error: %v, polyhash: %s", err, v.polyTxHash)
+					log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
 				}
 			}
 		}()
@@ -924,13 +927,13 @@ func (this *EthSender) commitHeader(header *polytypes.Header, pubkList []byte) b
 
 	hash := header.Hash()
 	txhash := signedtx.Hash()
-	isSuccess := this.waitTransactionConfirm(fmt.Sprintf("header: %d", header.Height), txhash)
-	if isSuccess {
+	err2 := this.waitTransactionConfirm(fmt.Sprintf("header: %d", header.Height), txhash)
+	if err2 == nil {
 		log.Infof("successful to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s)",
 			hash.ToHexString(), header.Height, txhash.String(), nonce, tools.GetExplorerUrl(this.keyStore.GetChainId())+txhash.String())
 	} else {
-		log.Errorf("failed to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s)",
-			hash.ToHexString(), header.Height, txhash.String(), nonce, tools.GetExplorerUrl(this.keyStore.GetChainId())+txhash.String())
+		log.Errorf("failed to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s), \n err: %w",
+			hash.ToHexString(), header.Height, txhash.String(), nonce, tools.GetExplorerUrl(this.keyStore.GetChainId())+txhash.String(), err2)
 	}
 	return true
 }
@@ -948,27 +951,29 @@ func (this *EthSender) Balance() (*big.Int, error) {
 }
 
 // TODO: check the status of tx
-func (this *EthSender) waitTransactionConfirm(polyTxHash string, hash ethcommon.Hash) bool {
+func (this *EthSender) waitTransactionConfirm(polyTxHash string, hash ethcommon.Hash) error {
 	count := 0
 	for {
 		if count > 60 {
-			return false
+			return fmt.Errorf("reach max try, polyTxHash: %s, ethhash: %s", tools.HexStringReverse(polyTxHash), hash.String())
 		}
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Second * 3)
 		count++
 		_, ispending, err := this.ethClient.TransactionByHash(context.Background(), hash)
 		if err != nil {
+			log.Warnf("TransactionByHash error retry, polyTxHash: %s, ethhash: %s, error: %w", tools.HexStringReverse(polyTxHash), hash.String(), err)
 			continue
 		}
-		log.Debugf("( eth_transaction %s, poly_tx %s ) is pending: %v", hash.String(), polyTxHash, ispending)
-		if ispending == true {
+		log.Debugf("( eth_transaction %s, poly_tx %s ) is pending: %v", hash.String(), tools.HexStringReverse(polyTxHash), ispending)
+		if ispending {
 			continue
 		} else {
 			_, err := this.ethClient.TransactionReceipt(context.Background(), hash)
 			if err != nil {
+				log.Warnf("TransactionReceipt error retry, polyTxHash: %s, ethhash: %s, error: %w", tools.HexStringReverse(polyTxHash), hash.String(), err)
 				continue
 			}
-			return true
+			return nil
 			// return receipt.Status == types.ReceiptStatusSuccessful
 		}
 	}

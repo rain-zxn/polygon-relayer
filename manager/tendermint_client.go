@@ -232,7 +232,7 @@ func (this *TendermintClient) GetLatestSpan(block int64) (*hmTypes.Span, error) 
 	var span = new(hmTypes.Span)
 	err2 := json.Unmarshal(res.Response.Value, &span)
 	if err2 != nil {
-		log.Errorf("tendermint_client.GetSpan - unmarshal failed, block %d, %v", block, err2)
+		log.Errorf("tendermint_client.GetLatestSpan - unmarshal failed, block %d, %v", block, err2)
 		return nil, err2
 	}
 
