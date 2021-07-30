@@ -735,7 +735,7 @@ type EthSender struct {
 func (this *EthSender) sendTxToEth(info *EthTxInfo) error {
 	nonce := this.nonceManager.GetAddressNonce(this.acc.Address)
 	origin := big.NewInt(0).Set(info.gasPrice)
-	maxPrice := big.NewInt(0).Quo(big.NewInt(0).Mul(origin, big.NewInt(15)), big.NewInt(10))
+	maxPrice := big.NewInt(0).Quo(big.NewInt(0).Mul(origin, big.NewInt(100)), big.NewInt(10))
 RETRY:
 	tx := types.NewTransaction(nonce, info.contractAddr, big.NewInt(0), info.gasLimit, info.gasPrice, info.txData)
 	signedtx, err := this.keyStore.SignTransaction(tx, this.acc)
@@ -760,7 +760,7 @@ RETRY:
 		log.Infof("successful to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s)",
 			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String())
 	} else {
-		log.Errorf("failed to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s), \n err: %w",
+		log.Errorf("failed to relay tx to ethereum: (eth_hash: %s, nonce: %d, poly_hash: %s, eth_explorer: %s), err: %w",
 			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String(), err2)
 		if info.gasPrice.Cmp(maxPrice) > 0 {
 			log.Errorf("waitTransactionConfirm failed")
@@ -773,12 +773,13 @@ RETRY:
 		goto RETRY
 		//this.nonceManager.ReturnNonce(this.acc.Address, nonce)
 	}
-	if this.locked == false {
-		this.result <- true
+	if !this.locked {
+		// this.result <- true
 	} else {
-		log.Errorf("account %s has unlocked!", this.acc.Address.String())
+		log.Errorf("account %s has unlocked! - ", this.acc.Address.String())
 		this.locked = false
 	}
+	this.result <- true
 	return nil
 }
 
@@ -932,7 +933,7 @@ func (this *EthSender) commitHeader(header *polytypes.Header, pubkList []byte) b
 		log.Infof("successful to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s)",
 			hash.ToHexString(), header.Height, txhash.String(), nonce, tools.GetExplorerUrl(this.keyStore.GetChainId())+txhash.String())
 	} else {
-		log.Errorf("failed to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s), \n err: %w",
+		log.Errorf("failed to relay poly header to ethereum: (header_hash: %s, height: %d, eth_txhash: %s, nonce: %d, eth_explorer: %s), err: %w",
 			hash.ToHexString(), header.Height, txhash.String(), nonce, tools.GetExplorerUrl(this.keyStore.GetChainId())+txhash.String(), err2)
 	}
 	return true
@@ -957,7 +958,7 @@ func (this *EthSender) waitTransactionConfirm(polyTxHash string, hash ethcommon.
 		if count > 60 {
 			return fmt.Errorf("reach max try, polyTxHash: %s, ethhash: %s", tools.HexStringReverse(polyTxHash), hash.String())
 		}
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second * 1)
 		count++
 		_, ispending, err := this.ethClient.TransactionByHash(context.Background(), hash)
 		if err != nil {
