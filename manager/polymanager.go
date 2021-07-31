@@ -665,7 +665,6 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				
 				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
 				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
-				log.Infof("wg.Wait tx, tx: %s", maxFeeOfTxHash)
 
 				// sender := <- txSenChan
 
