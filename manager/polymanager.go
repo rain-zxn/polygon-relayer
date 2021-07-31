@@ -658,7 +658,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	for i := 0; i < len(this.senders); i++ {
 		wg.Add(1)
 		log.Infof("wg.Wait create gorutine start %d", i)
-		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex) {
+		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex, sender *EthSender) {
 			defer wg.Done()
 
 			for maxFeeOfTransactionAndHash := range txChan {
@@ -667,7 +667,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
 				log.Infof("wg.Wait tx, tx: %s", maxFeeOfTxHash)
 
-				sender := <- txSenChan
+				// sender := <- txSenChan
 
 				// sender := this.selectSender()
 				log.Infof("sender %s is handling poly tx (hash: %s), height: %d", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)), maxFeeOfTransaction.header.Height)
@@ -690,9 +690,9 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				
 				txLock.Unlock()
 
-				txSenChan <- sender
+				// txSenChan <- sender
 			}
-		}(txChan, this.txSenChan, this.txLock)
+		}(txChan, this.txSenChan, this.txLock, this.senders[i])
 	}
 
 	log.Infof("wg.Wait start")
