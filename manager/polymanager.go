@@ -523,6 +523,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	if err != nil {
 		return fmt.Errorf("handleLockDepositEvents - this.db.GetAllBridgeTransactions error: %s", err)
 	}
+	log.Infof("handleLockDepositEvents - start, len: %d", len(retryList))
 	if len(retryList) == 0 {
 		return nil
 	}
