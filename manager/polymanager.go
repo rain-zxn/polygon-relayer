@@ -709,6 +709,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				}
 				// txSenChan <- sender
 			}
+			log.Infof("sender %s is done", sender.acc.Address.String())
 		}(txSend[i], this.txLock, this.senders[i])
 	}
 
@@ -860,14 +861,21 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		return false
 	}
 
-	k := this.getRouter()
-	c, ok := this.cmap[k]
+	//k := this.getRouter()
+	//c, ok := this.cmap[k]
 	result := make(chan bool)
-	if !ok {
-		c = make(chan *EthTxInfo, ChanLen)
-		this.cmap[k] = c
-		go func() {
-			for v := range c {
+	c := &EthTxInfo{
+		txData:       txData,
+		contractAddr: contractaddr,
+		gasPrice:     gasPrice,
+		gasLimit:     gasLimit,
+		polyTxHash:   polyTxHash,
+	}
+	//if !ok {
+		//c = make(chan *EthTxInfo, ChanLen)
+		//this.cmap[k] = c
+		go func(v *EthTxInfo) {
+			//for v := range c {
 				log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
 				if err = this.sendTxToEth(v); err != nil {
 					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
@@ -876,17 +884,11 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 					log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
 				}
 				result <- true
-			}
-		}()
-	}
+			//}
+		}(c)
+	//}
 	//TODO: could be blocked
-	c <- &EthTxInfo{
-		txData:       txData,
-		contractAddr: contractaddr,
-		gasPrice:     gasPrice,
-		gasLimit:     gasLimit,
-		polyTxHash:   polyTxHash,
-	}
+	
 	select {
 	case <-result:
 		return true
