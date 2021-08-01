@@ -679,16 +679,18 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 				log.Infof("sender %s tx return tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
 
-				txLock.Lock()
+				
 				if res {
 					this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
 				} else {
+					log.Infof("sender %s txLock start  tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+					txLock.Lock()
 					retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
+					log.Infof("sender %s txLock  Unlock start tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+					txLock.Unlock()
+					log.Infof("sender %s txLock  Unlock finished tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
+
 				}
-
-				
-				txLock.Unlock()
-
 				// txSenChan <- sender
 			}
 		}(txChan, this.txSenChan, this.txLock, this.senders[i])
