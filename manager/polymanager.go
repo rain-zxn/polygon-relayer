@@ -779,7 +779,7 @@ RETRY:
 		log.Errorf("account %s has unlocked! - ", this.acc.Address.String())
 		this.locked = false
 	}
-	this.result <- true
+	// result <- true
 	return nil
 }
 
@@ -844,6 +844,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 
 	k := this.getRouter()
 	c, ok := this.cmap[k]
+	result := make(chan bool)
 	if !ok {
 		c = make(chan *EthTxInfo, ChanLen)
 		this.cmap[k] = c
@@ -852,10 +853,11 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 				log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
 				if err = this.sendTxToEth(v); err != nil {
 					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
-					this.result <- true
+					//result <- true
 				} else {
 					log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
 				}
+				result <- true
 			}
 		}()
 	}
@@ -868,7 +870,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		polyTxHash:   polyTxHash,
 	}
 	select {
-	case <-this.result:
+	case <-result:
 		return true
 	case <-time.After(time.Second * 300):
 		log.Errorf("account %s has locked!", this.acc.Address.String())
