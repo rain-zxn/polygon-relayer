@@ -590,9 +590,14 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	}
 	retryBridgeTransactions := make(map[string]*BridgeTransaction)
 
-	txChan := make(chan *BridgeTransactionAndHash, len(bridgeTransactions))
+	// txChan := make(chan *BridgeTransactionAndHash, len(bridgeTransactions))
+	txSend := make([][]*BridgeTransactionAndHash, len(this.senders))
+	for i:=0;i<len(this.senders);i++ {
+		txSend[i] = make([]*BridgeTransactionAndHash, 0)
+	}
 
 	log.Infof("wg.Wait start start 1")
+	sortedTx := make([]*BridgeTransactionAndHash, len(bridgeTransactions))
 	for len(bridgeTransactions) > 0 {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
@@ -620,10 +625,15 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 			log.Infof("select transaction, poly txhash: %s, poly txhash2: %s", maxFeeOfTransaction.polyTxHash, hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
 
-			txChan <- &BridgeTransactionAndHash{
+			/* txChan <- &BridgeTransactionAndHash{
 				BridgeTransaction: maxFeeOfTransaction,
 				Hash:              maxFeeOfTxHash,
-			}
+			} */
+
+			sortedTx = append(sortedTx, &BridgeTransactionAndHash{
+				BridgeTransaction: maxFeeOfTransaction,
+				Hash:              maxFeeOfTxHash,
+			})
 
 			delete(bridgeTransactions, maxFeeOfTxHash)
 
@@ -652,16 +662,22 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			break
 		}
 	}
-	close(txChan)
+	//close(txChan)
+	for i,v := range sortedTx {
+		if v != nil {
+			txSend[i%len(this.senders)] = append(txSend[i%len(this.senders)], v)
+			log.Infof("txSend %d, v: %w", i%len(this.senders), v)
+		}
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < len(this.senders); i++ {
 		wg.Add(1)
 		log.Infof("wg.Wait create gorutine start %d", i)
-		go func(txChan chan *BridgeTransactionAndHash, txSenChan chan *EthSender, txLock *sync.Mutex, sender *EthSender) {
+		go func(txChan []*BridgeTransactionAndHash, txLock *sync.Mutex, sender *EthSender) {
 			defer wg.Done()
 
-			for maxFeeOfTransactionAndHash := range txChan {
+			for _, maxFeeOfTransactionAndHash := range txChan {
 				
 				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
 				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
@@ -693,7 +709,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 				}
 				// txSenChan <- sender
 			}
-		}(txChan, this.txSenChan, this.txLock, this.senders[i])
+		}(txSend[i], this.txLock, this.senders[i])
 	}
 
 	log.Infof("wg.Wait start")
