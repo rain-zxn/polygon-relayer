@@ -21,3 +21,4 @@ polygon-relayer
 output/**
 
 **/wallet*.dat
+.vscode/
