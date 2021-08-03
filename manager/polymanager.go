@@ -155,9 +155,7 @@ type PolyManager struct {
 	eccdInstance  *eccd_abi.EthCrossChainData
 	nofeemode     bool
 
-	txChan    chan *BridgeTransactionAndHash
-	txSenChan chan *EthSender
-	txLock    *sync.Mutex
+	txLock *sync.Mutex
 }
 
 func NewPolyManager(servCfg *config.ServiceConfig,
@@ -236,10 +234,7 @@ func NewPolyManager(servCfg *config.ServiceConfig,
 
 		nofeemode: nofeemode,
 
-		txChan:    make(chan *BridgeTransactionAndHash, 4),
-		txSenChan: txSenChan,
-		txLock:   &sync.Mutex{},
-		
+		txLock: &sync.Mutex{},
 	}, nil
 }
 
@@ -590,9 +585,8 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	}
 	retryBridgeTransactions := make(map[string]*BridgeTransaction)
 
-	// txChan := make(chan *BridgeTransactionAndHash, len(bridgeTransactions))
 	txSend := make([][]*BridgeTransactionAndHash, len(this.senders))
-	for i:=0;i<len(this.senders);i++ {
+	for i := 0; i < len(this.senders); i++ {
 		txSend[i] = make([]*BridgeTransactionAndHash, 0)
 	}
 
@@ -622,13 +616,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}
 
 		if maxFeeOfTransaction != nil {
-
 			log.Infof("select transaction, poly txhash: %s, poly txhash2: %s", maxFeeOfTransaction.polyTxHash, hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-
-			/* txChan <- &BridgeTransactionAndHash{
-				BridgeTransaction: maxFeeOfTransaction,
-				Hash:              maxFeeOfTxHash,
-			} */
 
 			sortedTx = append(sortedTx, &BridgeTransactionAndHash{
 				BridgeTransaction: maxFeeOfTransaction,
@@ -636,34 +624,12 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			})
 
 			delete(bridgeTransactions, maxFeeOfTxHash)
-
-			/* 			sender := this.selectSender()
-			   			if sender == nil {
-			   				log.Infof("There is no sender.......")
-			   				return nil
-			   			}
-			   			log.Infof("sender %s is handling poly tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-			   			res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
-			   				maxFeeOfTransaction.param,
-			   				maxFeeOfTransaction.headerProof,
-			   				maxFeeOfTransaction.anchorHeader,
-			   				hex.EncodeToString(maxFeeOfTransaction.param.TxHash),
-			   				maxFeeOfTransaction.rawAuditPath)
-
-			   			log.Infof("sender %s tx return tx (hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
-			   			if res {
-			   				this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
-			   			} else {
-			   				retryBridgeTransactions[maxFeeOfTxHash] = maxFeeOfTransaction
-			   			}
-
-			   			delete(bridgeTransactions, maxFeeOfTxHash) */
 		} else {
 			break
 		}
 	}
-	//close(txChan)
-	for i,v := range sortedTx {
+
+	for i, v := range sortedTx {
 		if v != nil {
 			txSend[i%len(this.senders)] = append(txSend[i%len(this.senders)], v)
 			log.Infof("txSend %d, v: %w", i%len(this.senders), v)
@@ -678,13 +644,10 @@ func (this *PolyManager) handleLockDepositEvents() error {
 			defer wg.Done()
 
 			for _, maxFeeOfTransactionAndHash := range txChan {
-				
+
 				maxFeeOfTransaction := maxFeeOfTransactionAndHash.BridgeTransaction
 				maxFeeOfTxHash := maxFeeOfTransactionAndHash.Hash
 
-				// sender := <- txSenChan
-
-				// sender := this.selectSender()
 				log.Infof("sender %s is handling poly tx (hash: %s), height: %d", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)), maxFeeOfTransaction.header.Height)
 				res := sender.commitDepositEventsWithHeader(maxFeeOfTransaction.header,
 					maxFeeOfTransaction.param,
@@ -695,7 +658,6 @@ func (this *PolyManager) handleLockDepositEvents() error {
 
 				log.Infof("sender %s tx return tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
 
-				
 				if res {
 					this.db.DeleteBridgeTransactions(maxFeeOfTxHash)
 				} else {
@@ -707,7 +669,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 					log.Infof("sender %s txLock  Unlock finished tx (poly hash: %s)", sender.acc.Address.String(), hex.EncodeToString(tools.HexReverse(maxFeeOfTransaction.param.TxHash)))
 
 				}
-				// txSenChan <- sender
+
 			}
 			log.Infof("sender %s is done", sender.acc.Address.String())
 		}(txSend[i], this.txLock, this.senders[i])
@@ -716,7 +678,6 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	log.Infof("wg.Wait start")
 	wg.Wait()
 	log.Infof("wg.Wait finished")
-
 
 	for k, v := range retryBridgeTransactions {
 		sink := common.NewZeroCopySink(nil)
@@ -792,13 +753,12 @@ RETRY:
 		goto RETRY
 		//this.nonceManager.ReturnNonce(this.acc.Address, nonce)
 	}
-	if !this.locked {
-		// this.result <- true
-	} else {
+
+	if this.locked {
 		log.Errorf("account %s has unlocked! - ", this.acc.Address.String())
 		this.locked = false
 	}
-	// result <- true
+
 	return nil
 }
 
@@ -861,8 +821,6 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		return false
 	}
 
-	//k := this.getRouter()
-	//c, ok := this.cmap[k]
 	result := make(chan bool)
 	c := &EthTxInfo{
 		txData:       txData,
@@ -871,24 +829,17 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		gasLimit:     gasLimit,
 		polyTxHash:   polyTxHash,
 	}
-	//if !ok {
-		//c = make(chan *EthTxInfo, ChanLen)
-		//this.cmap[k] = c
-		go func(v *EthTxInfo) {
-			//for v := range c {
-				log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
-				if err = this.sendTxToEth(v); err != nil {
-					log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
-					//result <- true
-				} else {
-					log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
-				}
-				result <- true
-			//}
-		}(c)
-	//}
-	//TODO: could be blocked
-	
+
+	go func(v *EthTxInfo) {
+		log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
+		if err = this.sendTxToEth(v); err != nil {
+			log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
+		} else {
+			log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
+		}
+		result <- true
+	}(c)
+
 	select {
 	case <-result:
 		return true
