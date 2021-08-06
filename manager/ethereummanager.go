@@ -198,20 +198,14 @@ func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, st
 func (this *EthereumManager) SyncHeaderToPoly() error {
 	currentHeight := this.currentHeight + 1
 
-	forceMode := false
 	if this.forceHeight > 0 {
 		currentHeight = this.forceHeight + 1
-		forceMode = true
 	}
 
 	fetchBlockTicker := time.NewTicker(time.Duration(this.config.ETHConfig.MonitorInterval) * time.Second)
 	for {
 		select {
 		case <-fetchBlockTicker.C:
-			if !forceMode {
-				// reset start
-				// currentHeight = this.findLastestHeight() + 1
-			}
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
 			if err != nil {
@@ -247,6 +241,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 							log.Errorf("SyncHeaderToPoly commit err: %s", err)
 
 							this.rollBackToCommAncestor(&currentHeight)
+							currentHeight++ 
 							this.Forkfound = true
 						} else if strings.Contains(err.Error(), "data outdated") || strings.Contains(err.Error(), "go to future") {
 							log.Warnf("SyncHeaderToPoly commit err: %s", err)
