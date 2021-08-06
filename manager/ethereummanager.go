@@ -130,6 +130,8 @@ type EthereumManager struct {
 
 	LastSpanId   uint64
 	LastSpanId2  uint64
+
+	Forkfound bool
 }
 
 func NewEthereumManager(servconfig *config.ServiceConfig, startheight uint64, startforceheight uint64, ontsdk *sdkp.PolySdk, client *ethclient.Client,
@@ -245,6 +247,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 							log.Errorf("SyncHeaderToPoly commit err: %s", err)
 
 							this.rollBackToCommAncestor(&currentHeight)
+							this.Forkfound = true
 						} else if strings.Contains(err.Error(), "data outdated") || strings.Contains(err.Error(), "go to future") {
 							log.Warnf("SyncHeaderToPoly commit err: %s", err)
 
@@ -255,7 +258,6 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 							currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
 						}
 
-						// currentHeight = currentHeight - uint64(len(this.header4sync)) + 1
 						this.header4sync = make([][]byte, 0)
 
 						break
@@ -604,7 +606,7 @@ func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
 	if snycheight == snycheightLast {
 		// outdated
 		if *currentHeight < snycheight {
-			if this.forceHeight == 0 { // this is force mode, not a error
+			if this.forceHeight == 0 && !this.Forkfound { // this is force mode, not a error
 				return fmt.Errorf("commitHeader bor failed, poly bor height not updated, data outdated, send transaction %s, last bor height %d, current bor height %d, input currentHeight: %d currentStart: %d",
 					tx.ToHexString(), snycheightLast, snycheight, *currentHeight, currentHeightStart)
 			}
