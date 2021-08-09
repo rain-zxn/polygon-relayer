@@ -639,7 +639,7 @@ func (this *EthereumManager) MonitorDeposit() {
 				continue
 			}
 			snycheight := this.findLastestHeight()
-			log.Infof("MonitorDeposit from eth - snyced bor height: %d, lastest bor height: %d, diff: %d", snycheight, height, height-snycheight)
+			log.Infof("MonitorDeposit from eth - snyced bor height: %d, lastest bor height: %d, diff: %d", snycheight, height, int64(height)-int64(snycheight))
 
 			// change 120 blocks
 			err2 := this.handleLockDepositEvents(snycheight)
