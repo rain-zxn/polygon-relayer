@@ -534,6 +534,10 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 
 		param := &common2.MakeTxParam{}
 		_ = param.Deserialization(common.NewZeroCopySource([]byte(evt.Rawdata)))
+		if param.Method != "unlock" {
+			log.Errorf("target contract method invalid %s", param.Method)
+			continue
+		}
 
 		raw, _ := this.polySdk.GetStorage(autils.CrossChainManagerContractAddress.ToHexString(),
 			append(append([]byte(cross_chain_manager.DONE_TX), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), param.CrossChainID...))

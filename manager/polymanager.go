@@ -391,6 +391,10 @@ func (this *PolyManager) handleDepositEvents(height uint32) bool {
 					log.Errorf("handleDepositEvents - failed to deserialize MakeTxParam (value: %x, err: %v)", value, err)
 					continue
 				}
+				if param.MakeTxParam.Method != "unlock" {
+					log.Errorf("Invalid target contract method %s", param.MakeTxParam.Method)
+					continue
+				}
 				var isTarget bool
 				if len(this.config.TargetContracts) > 0 {
 					toContractStr := ethcommon.BytesToAddress(param.MakeTxParam.ToContractAddress).String()
