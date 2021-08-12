@@ -99,6 +99,7 @@ func startServer(ctx *cli.Context) {
 
 	testLocal := ctx.GlobalBool(cmd.GetFlagName(cmd.TestLocalFlag))
 	nofeemode := ctx.GlobalBool(cmd.GetFlagName(cmd.NofeemodeFlag))
+	_ = nofeemode
 
 	// read config
 	servConfig := config.NewServiceConfig(ConfigPath)
