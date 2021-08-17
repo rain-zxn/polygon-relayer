@@ -534,7 +534,7 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 
 		param := &common2.MakeTxParam{}
 		_ = param.Deserialization(common.NewZeroCopySource([]byte(evt.Rawdata)))
-		if param.Method != "unlock" {
+		if !tools.IsMethodWhite(param.Method) {
 			log.Errorf("target contract method invalid %s", param.Method)
 			continue
 		}

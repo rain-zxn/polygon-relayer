@@ -159,8 +159,8 @@ func startServer(ctx *cli.Context) {
 	service.StartListen()
 	service.StartRelay()
 
-	// TODO remove 
-	// initPolyServer(servConfig, global.PolySdkp, ethereumsdk, boltDB, nofeemode)
+	
+	initPolyServer(servConfig, global.PolySdkp, ethereumsdk, boltDB, nofeemode)
 	initETHServer(servConfig, global.PolySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc, tclient)
 	waitToExit()
 }
@@ -202,9 +202,9 @@ func initETHServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethe
 
 	go mgr.MonitorChain()
 	
-	// TODO remove 
-	// go mgr.MonitorDeposit()
-	// go mgr.CheckDeposit()
+	
+	go mgr.MonitorDeposit()
+	go mgr.CheckDeposit()
 }
 
 func initPolyServer(servConfig *config.ServiceConfig, polysdk *sdkp.PolySdk, ethereumsdk *ethclient.Client, boltDB *db.BoltDB, nofeemode bool) {

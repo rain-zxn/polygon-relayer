@@ -38,6 +38,24 @@ import (
 	"github.com/polynetwork/poly/common"
 )
 
+var WhiteMethods []string = []string{"add",
+"remove",
+"swap",
+"unlock",
+"addExtension",
+"removeExtension",
+"registerAsset",
+"onCrossTransfer"}
+
+func IsMethodWhite(m string) bool {
+	for _,i := range WhiteMethods {
+		if i == m {
+			return true
+		}
+	}
+	return false
+}
+
 type jsonError struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
