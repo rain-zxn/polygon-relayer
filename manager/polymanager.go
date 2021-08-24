@@ -729,10 +729,10 @@ RETRY:
 	}
 	err = this.ethClient.SendTransaction(context.Background(), signedtx)
 	if err != nil {
-		pedding, err := this.nonceManager.EthClient.PendingNonceAt(context.Background(), this.acc.Address)
-		if err != nil {
-			log.Errorf("send transactions error, get pedding, err: %v", err)
-			return err
+		pedding, err2 := this.nonceManager.EthClient.PendingNonceAt(context.Background(), this.acc.Address)
+		if err2 != nil {
+			log.Errorf("send transactions error, get pedding, err: %v", err2)
+			return err2
 		}
 		log.Errorf("send transactions error, nonce %d,  pedding %d, err: %v", nonce, pedding, err)
 
