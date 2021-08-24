@@ -738,19 +738,18 @@ RETRY:
 		log.Errorf("send transactions error, nonce %d,  pedding %d, err: %v", nonce, pedding, err)
 
 		if strings.Contains(err.Error(), "replacement transaction underpriced") ||
-		    strings.Contains(err.Error(), "too low") {
-				// this.nonceManager.ClearNonce()
-				// np := this.nonceManager.GetAddressNonce(this.acc.Address)
-				// nonce = np
-				info.gasPrice = big.NewInt(0).Quo(big.NewInt(0).Mul(info.gasPrice, big.NewInt(11)), big.NewInt(10))
-				log.Errorf("send transactions error, retry, nonce %d,  err: %w", nonce, err)
-				goto RETRY
-			}
-		
-		 // this.nonceManager.ReturnNonce(this.acc.Address, nonce)
-		 return fmt.Errorf("commitDepositEventsWithHeader - send transaction error and return nonce %d: %v", nonce, err)
-		
-		
+			strings.Contains(err.Error(), "too low") {
+			// this.nonceManager.ClearNonce()
+			// np := this.nonceManager.GetAddressNonce(this.acc.Address)
+			// nonce = np
+			info.gasPrice = big.NewInt(0).Quo(big.NewInt(0).Mul(info.gasPrice, big.NewInt(20)), big.NewInt(10))
+			log.Errorf("send transactions error, retry, nonce %d,  err: %w", nonce, err)
+			goto RETRY
+		} else if !strings.Contains(err.Error(), "already known") {
+			// this.nonceManager.ReturnNonce(this.acc.Address, nonce)
+			return fmt.Errorf("commitDepositEventsWithHeader - send transaction error and return nonce %d: %v", nonce, err)
+		}
+
 		// os.Exit(1)
 		//log.Fatal("send transaction error!")
 	}
