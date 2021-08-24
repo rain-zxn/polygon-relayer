@@ -854,15 +854,16 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 		log.Infof("start to send tx to ethereum: poly txhash: %s", tools.HexStringReverse(v.polyTxHash))
 		if err = this.sendTxToEth(v); err != nil {
 			log.Errorf("failed to send tx to ethereum: error: %v, polyhash: %s", err, tools.HexStringReverse(v.polyTxHash))
+			result <- false
 		} else {
 			log.Infof("success to send tx to ethereum: polyhash: %s", tools.HexStringReverse(v.polyTxHash))
+			result <- true
 		}
-		result <- true
 	}(c)
 
 	select {
-	case <-result:
-		return true
+	case r := <-result:
+		return r
 	case <-time.After(time.Second * 300):
 		log.Errorf("account %s has locked!", this.acc.Address.String())
 		this.locked = true
