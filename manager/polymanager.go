@@ -764,7 +764,7 @@ RETRY:
 			hash.String(), nonce, tools.HexStringReverse(info.polyTxHash), tools.GetExplorerUrl(this.keyStore.GetChainId())+hash.String(), err2)
 		if info.gasPrice.Cmp(maxPrice) > 0 {
 			log.Errorf("waitTransactionConfirm failed")
-			os.Exit(1)
+			// os.Exit(1)
 		}
 		info.gasPrice = big.NewInt(0).Quo(big.NewInt(0).Mul(info.gasPrice, big.NewInt(11)), big.NewInt(10))
 		if info.gasPrice.Cmp(maxPrice) >= 0 {
