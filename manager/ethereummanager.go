@@ -691,7 +691,8 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		txHash, err := this.commitProof(uint32(height), proof, crosstx.value, crosstx.txId)
 		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 		if err != nil {
-			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") {
+			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") ||
+			     strings.Contains(err.Error(), "verify proof value hash failed")  {
 				log.Infof("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, error: %s", refHeight, err)
 				continue
 			} else {
