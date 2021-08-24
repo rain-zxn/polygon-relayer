@@ -741,6 +741,7 @@ RETRY:
 				this.nonceManager.ClearNonce()
 				np := this.nonceManager.GetAddressNonce(this.acc.Address)
 				nonce = np
+				info.gasPrice = big.NewInt(0).Quo(big.NewInt(0).Mul(info.gasPrice, big.NewInt(11)), big.NewInt(10))
 				log.Errorf("send transactions error, retry, nonce %d,  err: %w", nonce, err)
 				goto RETRY
 			}
