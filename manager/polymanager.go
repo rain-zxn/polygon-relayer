@@ -824,6 +824,7 @@ func (this *EthSender) commitDepositEventsWithHeader(header *polytypes.Header, p
 			param.FromChainID, hex.EncodeToString(tools.HexReverse(param.TxHash)), hex.EncodeToString(param.MakeTxParam.TxHash), err.Error())
 		return false
 	}
+	gasLimit = gasLimit * 2
 
 	result := make(chan bool)
 	c := &EthTxInfo{
@@ -890,6 +891,7 @@ func (this *EthSender) commitHeader(header *polytypes.Header, pubkList []byte) b
 		log.Errorf("commitHeader - estimate gas limit error: %s", err.Error())
 		return false
 	}
+	gasLimit = gasLimit * 2
 
 	nonce := this.nonceManager.GetAddressNonce(this.acc.Address)
 	tx := types.NewTransaction(nonce, contractaddr, big.NewInt(0), gasLimit, gasPrice, txData)
