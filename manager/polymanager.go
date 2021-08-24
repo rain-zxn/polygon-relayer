@@ -729,12 +729,27 @@ RETRY:
 	}
 	err = this.ethClient.SendTransaction(context.Background(), signedtx)
 	if err != nil {
-		/*
-		 this.nonceManager.ReturnNonce(this.acc.Address, nonce)
+		pedding, err := this.nonceManager.EthClient.PendingNonceAt(context.Background(), this.acc.Address)
+		if err != nil {
+			log.Errorf("send transactions error, get pedding, err: %v", err)
+			return err
+		}
+		log.Errorf("send transactions error, nonce %d,  pedding %d, err: %v", nonce, pedding, err)
+
+		if strings.Contains(err.Error(), "replacement transaction underpriced") ||
+		    strings.Contains(err.Error(), "too low") {
+				this.nonceManager.ClearNonce()
+				np := this.nonceManager.GetAddressNonce(this.acc.Address)
+				nonce = np
+				log.Errorf("send transactions error, retry, nonce %d,  err: %w", nonce, err)
+				goto RETRY
+			}
+		
+		 // this.nonceManager.ReturnNonce(this.acc.Address, nonce)
 		 return fmt.Errorf("commitDepositEventsWithHeader - send transaction error and return nonce %d: %v", nonce, err)
-		*/
-		log.Errorf("send transactions err: %v", err)
-		os.Exit(1)
+		
+		
+		// os.Exit(1)
 		//log.Fatal("send transaction error!")
 	}
 	hash := signedtx.Hash()

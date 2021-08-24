@@ -32,14 +32,14 @@ const clear_nonce_interval = 10 * time.Minute
 type NonceManager struct {
 	addressNonce  map[common.Address]uint64
 	returnedNonce map[common.Address]SortedNonceArr
-	ethClient     *ethclient.Client
+	EthClient     *ethclient.Client
 	lock          sync.Mutex
 }
 
 func NewNonceManager(ethClient *ethclient.Client) *NonceManager {
 	nonceManager := &NonceManager{
 		addressNonce:  make(map[common.Address]uint64),
-		ethClient:     ethClient,
+		EthClient:     ethClient,
 		returnedNonce: make(map[common.Address]SortedNonceArr),
 	}
 	//go nonceManager.clearNonce()
@@ -61,7 +61,7 @@ func (this *NonceManager) GetAddressNonce(address common.Address) uint64 {
 	nonce, ok := this.addressNonce[address]
 	if !ok {
 		// get nonce from eth network
-		uintNonce, err := this.ethClient.PendingNonceAt(context.Background(), address)
+		uintNonce, err := this.EthClient.PendingNonceAt(context.Background(), address)
 		if err != nil {
 			log.Errorf("GetAddressNonce: cannot get account %s nonce, err: %s, set it to nil!",
 				address, err)
@@ -98,7 +98,7 @@ func (this *NonceManager) DecreaseAddressNonce(address common.Address) {
 }
 
 // clear nonce per
-func (this *NonceManager) clearNonce() {
+func (this *NonceManager) ClearNonce() {
 	for {
 		<-time.After(clear_nonce_interval)
 		this.lock.Lock()
