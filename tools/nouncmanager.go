@@ -100,7 +100,7 @@ func (this *NonceManager) DecreaseAddressNonce(address common.Address) {
 // clear nonce per
 func (this *NonceManager) ClearNonce() {
 	for {
-		<-time.After(clear_nonce_interval)
+		// <-time.After(clear_nonce_interval)
 		this.lock.Lock()
 		for addr, _ := range this.addressNonce {
 			delete(this.addressNonce, addr)
