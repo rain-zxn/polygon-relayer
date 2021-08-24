@@ -99,7 +99,7 @@ func (this *NonceManager) DecreaseAddressNonce(address common.Address) {
 
 // clear nonce per
 func (this *NonceManager) ClearNonce() {
-	for {
+	// for {
 		// <-time.After(clear_nonce_interval)
 		this.lock.Lock()
 		for addr, _ := range this.addressNonce {
@@ -107,7 +107,7 @@ func (this *NonceManager) ClearNonce() {
 		}
 		this.lock.Unlock()
 		//log.Infof("clearNonce: clear all cache nonce")
-	}
+	// }
 }
 
 type SortedNonceArr []uint64
