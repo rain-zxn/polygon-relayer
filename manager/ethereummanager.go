@@ -315,9 +315,9 @@ func (this *EthereumManager) SyncEventToPoly() error {
 			log.Infof("SyncEventToPoly - eth height is %d", height)
 
 			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-				if currentHeight%10 == 0 {
-					log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", currentHeight)
-				}
+				
+				log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", currentHeight)
+				
 
 				ret := this.fetchLockDepositEvents(currentHeight, this.client)
 
@@ -486,6 +486,7 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 	lockAddress := ethcommon.HexToAddress(this.config.ETHConfig.ECCMContractAddress)
 	lockContract, err := eccm_abi.NewEthCrossChainManager(lockAddress, client)
 	if err != nil {
+		log.Errorf("fetchLockDepositEvents - NewEthCrossChainManager error :%s", err.Error())
 		return false
 	}
 	opt := &bind.FilterOpts{
@@ -506,6 +507,9 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 	for events.Next() {
 		evt := events.Event
 		var isTarget bool
+
+		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) start ",
+				evt.Raw.TxHash.Hex())
 
 		if len(this.config.TargetContracts) > 0 {
 			toContractStr := evt.ProxyOrAssetContract.String()
@@ -534,15 +538,19 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 
 		param := &common2.MakeTxParam{}
 		_ = param.Deserialization(common.NewZeroCopySource([]byte(evt.Rawdata)))
+		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) method: %s ",
+				evt.Raw.TxHash.Hex(), param.Method)
 		if !tools.IsMethodWhite(param.Method) {
 			log.Errorf("target contract method invalid %s", param.Method)
 			continue
 		}
+		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) method2: %s ",
+				evt.Raw.TxHash.Hex(), param.Method)
 
 		raw, _ := this.polySdk.GetStorage(autils.CrossChainManagerContractAddress.ToHexString(),
 			append(append([]byte(cross_chain_manager.DONE_TX), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), param.CrossChainID...))
 		if len(raw) != 0 {
-			log.Debugf("fetchLockDepositEvents - ccid %s (tx_hash: %s) already on poly",
+			log.Infof("fetchLockDepositEvents - ccid %s (tx_hash: %s) already on poly",
 				hex.EncodeToString(param.CrossChainID), evt.Raw.TxHash.Hex())
 			continue
 		}
@@ -692,8 +700,9 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 		if err != nil {
 			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") ||
-			     strings.Contains(err.Error(), "verify proof value hash failed")  {
-				log.Infof("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, error: %s", refHeight, err)
+			     strings.Contains(err.Error(), "verify proof value hash failed") ||
+				 strings.Contains(err.Error(), "verifyFromTx, verifyMerkleProof failed")  {
+				log.Infof("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, error: %s", refHeight, err)
 				continue
 			} else {
 				if err := this.db.DeleteRetry(v); err != nil {
