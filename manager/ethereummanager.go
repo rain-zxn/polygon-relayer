@@ -337,7 +337,7 @@ func (this *EthereumManager) SyncEventToPoly() error {
 
 func (this *EthereumManager) MonitorChain() {
 	go this.SyncHeaderToPoly()
-	go this.SyncEventToPoly()
+	// go this.SyncEventToPoly()
 }
 
 func (this *EthereumManager) init() error {
@@ -479,6 +479,17 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	if len(rawPolyHdr) == 0 || !bytes.Equal(rawPolyHdr, hdr.Hash().Bytes()) {
 		this.header4sync = append(this.header4sync, rawHdr)
 	}
+
+	// lock event
+				
+	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
+			
+	ret := this.fetchLockDepositEvents(height, this.client)
+
+	if !ret {
+		log.Errorf("SyncEventToPoly - fetchLockDepositEvents on height :%d failed", height)
+	}
+
 	return nil
 }
 
