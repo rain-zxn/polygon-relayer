@@ -472,7 +472,7 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	}
 
 	rawHdr, _ := json.Marshal(hdr)
-	log.Infof("handleBlockHeader - makeHeaderWithOptionalProof height: %d", height)
+	log.Infof("handleBlockHeader - makeHeaderWithOptionalProof height: %d, hash: %s", height, hdr.Hash().String())
 
 	rawPolyHdr, _ := this.polySdk.GetStorage(autils.HeaderSyncContractAddress.ToHexString(),
 		append(append([]byte(scom.MAIN_CHAIN), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), autils.GetUint64Bytes(height)...))
@@ -482,13 +482,13 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 
 	// lock event
 				
-	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
+/* 	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
 			
 	ret := this.fetchLockDepositEvents(height, this.client)
 
 	if !ret {
 		log.Errorf("SyncEventToPoly - fetchLockDepositEvents on height :%d failed", height)
-	}
+	} */
 
 	return nil
 }
