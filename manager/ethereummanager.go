@@ -482,13 +482,13 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 
 	// lock event
 				
-/* 	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
+ 	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
 			
 	ret := this.fetchLockDepositEvents(height, this.client)
 
 	if !ret {
 		log.Errorf("SyncEventToPoly - fetchLockDepositEvents on height :%d failed", height)
-	} */
+	}
 
 	return nil
 }
