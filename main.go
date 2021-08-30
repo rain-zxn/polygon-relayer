@@ -17,10 +17,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/urfave/cli"
@@ -145,7 +148,20 @@ func startServer(ctx *cli.Context) {
 	global.Db = boltDB
 
 	// heimdall client
-	tclient := rpcclient.NewHTTP(servConfig.TendermintConfig.CosmosRpcAddr, "/websocket")
+	var tclient *rpcclient.HTTP
+	if strings.HasPrefix(servConfig.TendermintConfig.CosmosRpcAddr, "http://") {
+		tclient = rpcclient.NewHTTP(servConfig.TendermintConfig.CosmosRpcAddr, "/websocket")
+	} else {
+		cc := &http.Client{ // https
+			Transport: &http.Transport{
+				// Set to true to prevent GZIP-bomb DoS attacks
+				DisableCompression: true,
+				TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+		tclient = rpcclient.NewHTTPWithClient(servConfig.TendermintConfig.CosmosRpcAddr, "/websocket", cc)
+	}
+
 	tclient.Start()
 	global.Rpcclient = tclient
 
