@@ -305,6 +305,7 @@ func (this *EthereumManager) SyncEventToPoly() error {
 			// currentHeight = this.findLastestHeight()
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
+			height = uint64(999999999)
 			if err != nil {
 				log.Errorf("SyncEventToPoly - cannot get node height, err: %w", err)
 				continue
