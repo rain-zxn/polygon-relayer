@@ -208,7 +208,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 		case <-fetchBlockTicker.C:
 
 			height, err := tools.GetNodeHeight(this.config.ETHConfig.RestURL, this.restClient)
-			height = uint64(999999999)
+			// height = uint64(999999999)
 			if err != nil {
 				log.Errorf("SyncHeaderToPoly - cannot get node height, err: %w", err)
 				continue
