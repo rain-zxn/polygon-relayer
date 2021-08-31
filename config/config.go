@@ -61,6 +61,7 @@ type ETHConfig struct {
 	SideChainId         uint64
 	StartHeight 		uint64
 	RestURL             string
+	RestURLToEth        string
 	ECCMContractAddress string
 	ECCDContractAddress string
 	KeyStorePath        string
@@ -122,6 +123,10 @@ func NewServiceConfig(configFilePath string) *ServiceConfig {
 	servConfig.TendermintConfig.PolyRpcAddr = servConfig.PolyConfig.RestURL
 	servConfig.TendermintConfig.PolyWallet = servConfig.PolyConfig.WalletFile
 	servConfig.TendermintConfig.PolyWalletPwd = servConfig.PolyConfig.WalletPwd
+
+	if len(servConfig.ETHConfig.RestURLToEth) == 0 {
+		servConfig.ETHConfig.RestURLToEth = servConfig.ETHConfig.RestURL
+	}
 
 	for k, v := range servConfig.ETHConfig.KeyStorePwdSet {
 		delete(servConfig.ETHConfig.KeyStorePwdSet, k)

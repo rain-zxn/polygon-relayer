@@ -135,6 +135,13 @@ func startServer(ctx *cli.Context) {
 	}
 	global.Ethereumsdk = ethereumsdk
 
+	ethereumsdkToEth, err := ethclient.Dial(servConfig.ETHConfig.RestURLToEth)
+	log.Infof("init eth ethereumsdkToEth - start url : %s", servConfig.ETHConfig.RestURLToEth)
+	if err != nil {
+		log.Errorf("startServer ethereumsdkToEth - cannot dial sync node, err: %s", err)
+		return
+	}
+
 	var boltDB *db.BoltDB
 	if servConfig.BoltDbPath == "" {
 		boltDB, err = db.NewBoltDB("boltdb")
@@ -176,7 +183,7 @@ func startServer(ctx *cli.Context) {
 	service.StartRelay()
 
 	
-	initPolyServer(servConfig, global.PolySdkp, ethereumsdk, boltDB, nofeemode)
+	initPolyServer(servConfig, global.PolySdkp, ethereumsdkToEth, boltDB, nofeemode)
 	initETHServer(servConfig, global.PolySdkp, ethereumsdk, boltDB, cosctx.RCtx.CMCdc, tclient)
 	waitToExit()
 }
