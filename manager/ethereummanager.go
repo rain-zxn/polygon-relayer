@@ -128,8 +128,8 @@ type EthereumManager struct {
 
 	TendermintClient *TendermintClient
 
-	LastSpanId   uint64
-	LastSpanId2  uint64
+	LastSpanId  uint64
+	LastSpanId2 uint64
 
 	Forkfound bool
 }
@@ -242,7 +242,7 @@ func (this *EthereumManager) SyncHeaderToPoly() error {
 							log.Errorf("SyncHeaderToPoly commit err: %s", err)
 
 							this.rollBackToCommAncestor(&currentHeight)
-							currentHeight++ 
+							currentHeight++
 							this.Forkfound = true
 						} else if strings.Contains(err.Error(), "data outdated") || strings.Contains(err.Error(), "go to future") {
 							log.Warnf("SyncHeaderToPoly commit err: %s", err)
@@ -316,9 +316,8 @@ func (this *EthereumManager) SyncEventToPoly() error {
 			log.Infof("SyncEventToPoly - eth height is %d", height)
 
 			for currentHeight < height-config.ETH_USEFUL_BLOCK_NUM {
-				
+
 				log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", currentHeight)
-				
 
 				ret := this.fetchLockDepositEvents(currentHeight, this.client)
 
@@ -402,24 +401,24 @@ func (this *EthereumManager) makeHeaderWithOptionalProof(height uint64, eth *eth
 	}
 
 	/* 	borhOnPoly := this.findLastestHeight()
-		borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
-		if err != nil {
-			return nil, err
-		}
-		if borhOnPolySpanId == 0 {
-			return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
-		}
-		*/
+	borhOnPolySpanId, err := this.TendermintClient.GetSpanIdByBor(borhOnPoly)
+	if err != nil {
+		return nil, err
+	}
+	if borhOnPolySpanId == 0 {
+		return nil, fmt.Errorf("ethereummanager.handleBlockHeader - db getSpanId not found, on height :%d failed", height)
+	}
+	*/
 
-	 	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
-		if err != nil {
-			return nil, fmt.Errorf("GetLatestSpan error - %w", err)
-		}
-		latestSpanId := latestSpan.ID
+	latestSpan, err := this.TendermintClient.GetLatestSpan(hHeight)
+	if err != nil {
+		return nil, fmt.Errorf("GetLatestSpan error - %w", err)
+	}
+	latestSpanId := latestSpan.ID
 
-		if spanId == this.LastSpanId && spanId != latestSpanId {
-			return headerWithOptionalProof, nil
-		}
+	if spanId == this.LastSpanId && spanId != latestSpanId {
+		return headerWithOptionalProof, nil
+	}
 
 	spanRes, _, err := this.TendermintClient.GetSpanRes(spanId, hHeight-1)
 	if err != nil {
@@ -482,9 +481,9 @@ func (this *EthereumManager) handleBlockHeader(height uint64) error {
 	}
 
 	// lock event
-				
- 	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
-			
+
+	log.Infof("SyncEventToPoly - handle confirmed eth Block height: %d", height)
+
 	ret := this.fetchLockDepositEvents(height, this.client)
 
 	if !ret {
@@ -521,7 +520,7 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 		var isTarget bool
 
 		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) start ",
-				evt.Raw.TxHash.Hex())
+			evt.Raw.TxHash.Hex())
 
 		if len(this.config.TargetContracts) > 0 {
 			toContractStr := evt.ProxyOrAssetContract.String()
@@ -551,13 +550,13 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 		param := &common2.MakeTxParam{}
 		_ = param.Deserialization(common.NewZeroCopySource([]byte(evt.Rawdata)))
 		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) method: %s ",
-				evt.Raw.TxHash.Hex(), param.Method)
+			evt.Raw.TxHash.Hex(), param.Method)
 		if !tools.IsMethodWhite(param.Method) {
 			log.Errorf("target contract method invalid %s", param.Method)
 			continue
 		}
 		log.Infof("fetchLockDepositEvents -  (tx_hash: %s) method2: %s ",
-				evt.Raw.TxHash.Hex(), param.Method)
+			evt.Raw.TxHash.Hex(), param.Method)
 
 		raw, _ := this.polySdk.GetStorage(autils.CrossChainManagerContractAddress.ToHexString(),
 			append(append([]byte(cross_chain_manager.DONE_TX), autils.GetUint64Bytes(this.config.ETHConfig.SideChainId)...), param.CrossChainID...))
@@ -702,9 +701,18 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		heightHex := hexutil.EncodeBig(big.NewInt(height))
 		proofKey := hexutil.Encode(keyBytes)
 		//2. get proof
-		proof, err := tools.GetProof(this.config.ETHConfig.RestURLProof, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
-		if err != nil {
-			log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, error :%w", height, refHeight, err)
+		var proof []byte
+		var err2 error
+		us := strings.Split(this.config.ETHConfig.RestURLProof, ",")
+		for _, uss := range us {
+			proof, err2 = tools.GetProof(uss, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
+			if err2 != nil {
+				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, uss, err)
+				continue
+			}
+		}
+		if err2 != nil {
+			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, err)
 			continue
 		}
 		//3. commit proof to poly
@@ -712,8 +720,8 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 		if err != nil {
 			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") ||
-			     strings.Contains(err.Error(), "verify proof value hash failed") ||
-				 strings.Contains(err.Error(), "verifyFromTx, verifyMerkleProof failed")  {
+				strings.Contains(err.Error(), "verify proof value hash failed") ||
+				strings.Contains(err.Error(), "verifyFromTx, verifyMerkleProof failed") {
 				log.Infof("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, error: %s", refHeight, err)
 				continue
 			} else {
