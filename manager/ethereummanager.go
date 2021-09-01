@@ -703,6 +703,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		//2. get proof
 		var proof []byte
 		var err2 error
+		var txHash string
 		us := strings.Split(this.config.ETHConfig.RestURLProof, ",")
 		for _, uss := range us {
 			proof, err2 = tools.GetProof(uss, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
@@ -710,31 +711,32 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, uss, err)
 				continue
 			}
+
+			//3. commit proof to poly
+			txHash, err2 = this.commitProof(uint32(height), proof, crosstx.value, crosstx.txId)
+			// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
+			if err2 != nil {
+				if strings.Contains(err2.Error(), "chooseUtxos, current utxo is not enough") ||
+					strings.Contains(err2.Error(), "verify proof value hash failed") ||
+					strings.Contains(err2.Error(), "verifyFromTx, verifyMerkleProof failed") {
+					log.Errorf("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, error: %s", refHeight, err2)
+					continue
+				} else {
+					if err := this.db.DeleteRetry(v); err != nil {
+						log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, error: %s", refHeight, err)
+					}
+					if strings.Contains(err2.Error(), "tx already done") {
+						log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d", ethcommon.BytesToHash(crosstx.txId).String(), refHeight)
+					} else {
+						log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
+					}
+					continue
+				}
+			}
 		}
 		if err2 != nil {
 			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, err)
 			continue
-		}
-		//3. commit proof to poly
-		txHash, err := this.commitProof(uint32(height), proof, crosstx.value, crosstx.txId)
-		// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
-		if err != nil {
-			if strings.Contains(err.Error(), "chooseUtxos, current utxo is not enough") ||
-				strings.Contains(err.Error(), "verify proof value hash failed") ||
-				strings.Contains(err.Error(), "verifyFromTx, verifyMerkleProof failed") {
-				log.Infof("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, error: %s", refHeight, err)
-				continue
-			} else {
-				if err := this.db.DeleteRetry(v); err != nil {
-					log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, error: %s", refHeight, err)
-				}
-				if strings.Contains(err.Error(), "tx already done") {
-					log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d", ethcommon.BytesToHash(crosstx.txId).String(), refHeight)
-				} else {
-					log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err)
-				}
-				continue
-			}
 		}
 		//4. put to check db for checking
 		err = this.db.PutCheck(txHash, v)
