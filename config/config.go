@@ -62,6 +62,7 @@ type ETHConfig struct {
 	StartHeight 		uint64
 	RestURL             string
 	RestURLToEth        string
+	RestURLProof        string
 	ECCMContractAddress string
 	ECCDContractAddress string
 	KeyStorePath        string
@@ -126,6 +127,9 @@ func NewServiceConfig(configFilePath string) *ServiceConfig {
 
 	if len(servConfig.ETHConfig.RestURLToEth) == 0 {
 		servConfig.ETHConfig.RestURLToEth = servConfig.ETHConfig.RestURL
+	}
+	if len(servConfig.ETHConfig.RestURLProof) == 0 {
+		servConfig.ETHConfig.RestURLProof = servConfig.ETHConfig.RestURL
 	}
 
 	for k, v := range servConfig.ETHConfig.KeyStorePwdSet {

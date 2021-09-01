@@ -702,7 +702,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		heightHex := hexutil.EncodeBig(big.NewInt(height))
 		proofKey := hexutil.Encode(keyBytes)
 		//2. get proof
-		proof, err := tools.GetProof(this.config.ETHConfig.RestURL, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
+		proof, err := tools.GetProof(this.config.ETHConfig.RestURLProof, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
 		if err != nil {
 			log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, error :%w", height, refHeight, err)
 			continue
