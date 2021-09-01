@@ -708,7 +708,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		for _, uss := range us {
 			proof, err2 = tools.GetProof(uss, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
 			if err2 != nil {
-				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, uss, err2)
+				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, for eth_tx %s, error :%w", height, refHeight, uss, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 				continue
 			}
 
@@ -719,23 +719,23 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 				if strings.Contains(err2.Error(), "chooseUtxos, current utxo is not enough") ||
 					strings.Contains(err2.Error(), "verify proof value hash failed") ||
 					strings.Contains(err2.Error(), "verifyFromTx, verifyMerkleProof failed") {
-					log.Errorf("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, error: %s", refHeight, err2)
+					log.Errorf("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, for eth_tx: %s, error: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 					continue
 				} else {
 					if err := this.db.DeleteRetry(v); err != nil {
-						log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, error: %s", refHeight, err)
+						log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, for eth_tx: %s, error: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err)
 					}
 					if strings.Contains(err2.Error(), "tx already done") {
-						log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d", ethcommon.BytesToHash(crosstx.txId).String(), refHeight)
+						log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d, for eth_tx: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), )
 					} else {
-						log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
+						log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx: %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 					}
 					continue
 				}
 			}
 		}
 		if err2 != nil {
-			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, err2)
+			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, for eth_tx: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 			continue
 		}
 		//4. put to check db for checking
