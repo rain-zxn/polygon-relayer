@@ -708,7 +708,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 		for _, uss := range us {
 			proof, err2 = tools.GetProof(uss, this.config.ETHConfig.ECCDContractAddress, proofKey, heightHex, this.restClient)
 			if err2 != nil {
-				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, uss, err)
+				log.Errorf("handleLockDepositEvents - tools.GetProof error, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, uss, err2)
 				continue
 			}
 
@@ -735,7 +735,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 			}
 		}
 		if err2 != nil {
-			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, err)
+			log.Errorf("handleLockDepositEvents - tools.GetProof error, tried all, proof height: %d, refHeight: %d, url: %s, error :%w", height, refHeight, this.config.ETHConfig.RestURLProof, err2)
 			continue
 		}
 		//4. put to check db for checking
