@@ -717,7 +717,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 			// log.Infof("noCheckFees params send to poly: height: %d, txId: %s, poly hash: %s", height, hex.EncodeToString(crosstx.txId), txHash)
 			if err2 != nil {
 				if strings.Contains(err2.Error(), "chooseUtxos, current utxo is not enough") ||
-					strings.Contains(err2.Error(), "verify proof value hash failed") ||
+					// strings.Contains(err2.Error(), "verify proof value hash failed") ||
 					strings.Contains(err2.Error(), "verifyFromTx, verifyMerkleProof failed") {
 					log.Errorf("handleLockDepositEvents - invokeNativeContract error, retry, refHeight: %d, for eth_tx: %s, error: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 					continue
