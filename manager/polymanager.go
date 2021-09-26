@@ -50,7 +50,7 @@ import (
 	"math/big"
 	"time"
 
-	"poly_bridge_sdk"
+	poly_bridge_sdk "github.com/polynetwork/poly-bridge/bridgesdk"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/polynetwork/polygon-relayer/tools"
@@ -151,7 +151,7 @@ type PolyManager struct {
 	db            *db.BoltDB
 	ethClient     *ethclient.Client
 	senders       []*EthSender
-	bridgeSdk     *poly_bridge_sdk.BridgeFeeCheck
+	bridgeSdk     *poly_bridge_sdk.BridgeSdk
 	eccdInstance  *eccd_abi.EthCrossChainData
 	nofeemode     bool
 
@@ -219,7 +219,7 @@ func NewPolyManager(servCfg *config.ServiceConfig,
 		txSenChan <- v
 	}
 
-	bridgeSdk := poly_bridge_sdk.NewBridgeFeeCheck(servCfg.BridgeUrl, 5)
+	bridgeSdk := poly_bridge_sdk.NewBridgeSdk(servCfg.BridgeUrl[0][0])
 	return &PolyManager{
 		exitChan:      make(chan int),
 		config:        servCfg,
@@ -567,6 +567,9 @@ func (this *PolyManager) handleLockDepositEvents() error {
 					item.fee = checkFee.Amount
 				} else if checkFee.PayState == poly_bridge_sdk.STATE_NOTPAY {
 					log.Infof("tx(%d,%s) has not payed fee", checkFee.ChainId, checkFee.Hash)
+					item.hasPay = FEE_NOTPAY
+				} else if checkFee.PayState == poly_bridge_sdk.STATE_NOTPOLYPROXY {
+					log.Infof("tx(%d,%s) has not POLYPROXY", checkFee.ChainId, checkFee.Hash)
 					item.hasPay = FEE_NOTPAY
 				} else {
 					log.Warnf("check fee of tx(%d,%s) failed", checkFee.ChainId, checkFee.Hash)
