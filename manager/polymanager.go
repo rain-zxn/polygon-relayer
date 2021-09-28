@@ -523,7 +523,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	if err != nil {
 		return fmt.Errorf("handleLockDepositEvents - this.db.GetAllBridgeTransactions error: %s", err)
 	}
-	log.Infof("handleLockDepositEvents - start, len: %d", len(retryList))
+	log.Debug("handleLockDepositEvents - start, len: %d", len(retryList))
 	if len(retryList) == 0 {
 		return nil
 	}
@@ -598,14 +598,14 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		txSend[i] = make([]*BridgeTransactionAndHash, 0)
 	}
 
-	log.Infof("wg.Wait start start 1")
+	log.Debug("wg.Wait start start 1")
 	sortedTx := make([]*BridgeTransactionAndHash, len(bridgeTransactions))
 	for len(bridgeTransactions) > 0 {
 		var maxFeeOfTransaction *BridgeTransaction = nil
 		maxFee := new(big.Float).SetUint64(0)
 		maxFeeOfTxHash := ""
 
-		log.Infof("select transaction")
+		log.Debug("select transaction")
 
 		for k, v := range bridgeTransactions {
 
@@ -647,7 +647,7 @@ func (this *PolyManager) handleLockDepositEvents() error {
 	var wg sync.WaitGroup
 	for i := 0; i < len(this.senders); i++ {
 		wg.Add(1)
-		log.Infof("wg.Wait create gorutine start %d", i)
+		log.Debug("wg.Wait create gorutine start %d", i)
 		go func(txChan []*BridgeTransactionAndHash, txLock *sync.Mutex, sender *EthSender) {
 			defer wg.Done()
 
@@ -683,9 +683,9 @@ func (this *PolyManager) handleLockDepositEvents() error {
 		}(txSend[i], this.txLock, this.senders[i])
 	}
 
-	log.Infof("wg.Wait start")
+	log.Debug("wg.Wait start")
 	wg.Wait()
-	log.Infof("wg.Wait finished")
+	log.Debug("wg.Wait finished")
 
 	for k, v := range retryBridgeTransactions {
 		sink := common.NewZeroCopySink(nil)

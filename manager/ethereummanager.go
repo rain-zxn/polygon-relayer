@@ -587,7 +587,7 @@ func (this *EthereumManager) fetchLockDepositEvents(height uint64, client *ethcl
 }
 
 func (this *EthereumManager) commitHeader(currentHeight *uint64) error {
-	log.Infof("commitHeader bor start - send transaction to poly chain len %d", len(this.header4sync))
+	log.Debug("commitHeader bor start - send transaction to poly chain len %d", len(this.header4sync))
 
 	snycheightLast := this.findLastestHeight()
 
@@ -726,7 +726,7 @@ func (this *EthereumManager) handleLockDepositEvents(refHeight uint64) error {
 						log.Errorf("handleLockDepositEvents - this.db.DeleteRetry error, refHeight: %d, for eth_tx: %s, error: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err)
 					}
 					if strings.Contains(err2.Error(), "tx already done") {
-						log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d, for eth_tx: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), )
+						log.Debugf("handleLockDepositEvents - eth_tx %s already on poly, refHeight: %d, for eth_tx: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String())
 					} else {
 						log.Errorf("handleLockDepositEvents - invokeNativeContract error, refHeight: %d, for eth_tx: %s: %s", refHeight, ethcommon.BytesToHash(crosstx.txId).String(), err2)
 					}
