@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/polynetwork/polygon-relayer/cmd"
 	"github.com/polynetwork/polygon-relayer/config"
@@ -24,13 +23,11 @@ var (
 		Usage: "Server config file `<path>`",
 		Value: config.DEFAULT_CONFIG_FILE_NAME,
 	}
-	tx string
+	txFlag = cli.StringFlag{
+		Name:  "tx",
+		Usage: "tx",
+	}
 )
-
-func init() {
-	flag.StringVar(&tx, "tx", "", "specify tx hash")
-	flag.Parse()
-}
 
 func setupApp() *cli.App {
 	app := cli.NewApp()
@@ -51,6 +48,8 @@ func setupApp() *cli.App {
 }
 
 func startServer(ctx *cli.Context) {
+	tx := ctx.GlobalString(cmd.GetFlagName(txFlag))
+	log.Info("qqqqqqtx:", tx)
 	if tx != "" {
 		ConfigPath := ctx.GlobalString(cmd.GetFlagName(cmd.ConfigPathFlag))
 		servConfig := config.NewServiceConfig(ConfigPath)
