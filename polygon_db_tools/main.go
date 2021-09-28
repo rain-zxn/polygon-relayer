@@ -24,7 +24,13 @@ var (
 		Usage: "Server config file `<path>`",
 		Value: config.DEFAULT_CONFIG_FILE_NAME,
 	}
+	tx string
 )
+
+func init() {
+	flag.StringVar(&tx, "tx", "", "specify tx hash")
+	flag.Parse()
+}
 
 func setupApp() *cli.App {
 	app := cli.NewApp()
@@ -45,9 +51,6 @@ func setupApp() *cli.App {
 }
 
 func startServer(ctx *cli.Context) {
-	var tx string
-	flag.StringVar(&tx, "tx", "", "specify tx hash")
-	flag.Parse()
 	if tx != "" {
 		ConfigPath := ctx.GlobalString(cmd.GetFlagName(cmd.ConfigPathFlag))
 		servConfig := config.NewServiceConfig(ConfigPath)
