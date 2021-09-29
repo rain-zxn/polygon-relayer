@@ -23,6 +23,13 @@ var (
 		Usage: "Server config file `<path>`",
 		Value: config.DEFAULT_CONFIG_FILE_NAME,
 	}
+
+	LogDir = cli.StringFlag{
+		Name:  "logdir",
+		Usage: "log directory",
+		Value: "./toolog/",
+	}
+
 	txFlag = cli.StringFlag{
 		Name:  "tx",
 		Usage: "tx",
@@ -38,6 +45,7 @@ func setupApp() *cli.App {
 	app.Flags = []cli.Flag{
 		logLevelFlag,
 		configPathFlag,
+		LogDir,
 	}
 	app.Commands = []cli.Command{}
 	app.Before = func(context *cli.Context) error {
@@ -48,6 +56,10 @@ func setupApp() *cli.App {
 }
 
 func startServer(ctx *cli.Context) {
+	ld := ctx.GlobalString(cmd.GetFlagName(cmd.LogDir))
+	logLevel := ctx.GlobalInt(cmd.GetFlagName(cmd.LogLevelFlag))
+	log.InitLog(logLevel, ld, log.Stdout)
+
 	tx := ctx.GlobalString(cmd.GetFlagName(txFlag))
 	log.Info("qqqqqqtx:", tx)
 	if tx != "" {

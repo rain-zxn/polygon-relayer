@@ -93,10 +93,9 @@ func (this *TendermintClient) GetSpanIdByBor(bor uint64) (uint64, error) {
 		}
 	}
 
-	allStrtBytes, _ := json.MarshalIndent(allStrt, "", "    ")
-	log.LogSpanL.Warnf("DB GetSpanIdByBor: span not found! bor height: %d, db data: %s", bor, string(allStrtBytes))
+	log.LogSpanL.Warnf("DB GetSpanIdByBor: span not found! bor height: %d", bor)
 
-	return 0, fmt.Errorf("DB GetSpanIdByBor: span not found! bor height: %d, db data: %s, error: %w", bor, string(allStrtBytes), mytypes.ErrSpanNotFound)
+	return 0, fmt.Errorf("DB GetSpanIdByBor: span not found! bor height: %d,  error: %w", bor, mytypes.ErrSpanNotFound)
 }
 
 func (this *TendermintClient) MonitorSpanLatestRoutine(seconds uint64) {
@@ -287,7 +286,7 @@ func (this *TendermintClient) GetCosmosHdr(h int64) (*types.CosmosHeader, error)
 	log.Debugf("bor time analyse - this.getValidators start, bor height: %d", h)
 	vSet, err := this.getValidators(h)
 	log.Debugf("bor time analyse - this.getValidators   end, bor height: %d", h)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Validators of height %d: %v", h, err)
 	}
