@@ -45,6 +45,7 @@ func setupApp() *cli.App {
 	app.Flags = []cli.Flag{
 		logLevelFlag,
 		configPathFlag,
+		txFlag,
 		LogDir,
 	}
 	app.Commands = []cli.Command{}
@@ -74,7 +75,7 @@ func startServer(ctx *cli.Context) {
 		if servConfig.BoltDbPath != "" {
 			boltDB, err = db.NewBoltDB(servConfig.BoltDbPath)
 			if err != nil {
-				log.Fatalf("db.NewWaitingDB error:%s", err)
+				log.Errorf("db.NewWaitingDB error:%s", err)
 				return
 			}
 		}
